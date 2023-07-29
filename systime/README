@@ -1,0 +1,3 @@
+Created by Glif.
+
+1.使用 LL_Init1msTick/LL_InitTick 初始化 SysTick 时，需调用 LL_SYSTICK_EnableIT 启用中断。

@@ -1,0 +1,18 @@
+Created by Yu-ZhongJun, RT-Thread Development Team, Glif.
+
+1.头文件目录：
+  ..
+  lwip/include
+2.对于 AC6 编译器，优化等级应设置为 -Oz；
+3.STM32CubeMX 应禁用默认 SDIO 初始化函数及 SysTick 中断；
+4.栈至少应分配 0x800 字节，不使用堆时可设置为 0x0；
+5.SDIO GPIO 配置：
+  PC8 - SDIO_D0
+  PC9 - SDIO_D1
+  PC10 - SDIO_D2
+  PC11 - SDIO_D3
+  PC12 - SDIO_CK
+  PD2 - SDIO_CMD
+6.88w8801.h 中默认禁用 NAT 模式（STA + AP），可自行启用；
+7.88w8801.h 中默认不写入固件到 Flash 且不使用 Flash 中的固件，可自行启用；
+8.88w8801.h 中默认禁用所有调试标志，可自行启用。

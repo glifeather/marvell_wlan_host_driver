@@ -1,0 +1,16 @@
+api/err.c
+core/*.c
+core/ipv4/dhcpd.c (Modified)
+core/ipv4/ip4.c (Modified)
+core/ipv4/nat.c (Modified)
+core/ipv4/*.c
+include/lwipopts.h (Modified)
+include/arch/cc.h (Modified)
+include/compat/*
+include/lwip/dhcpd.h (Modified)
+include/lwip/nat.h (Modified)
+include/lwip/*
+include/netif/ethernetif.h (Modified)
+include/netif/*
+netif/ethernet.c
+netif/ethernetif.c (Modified)
