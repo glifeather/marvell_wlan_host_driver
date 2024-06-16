@@ -36,9 +36,9 @@ err_t wrapper_tcp_bind(struct tcp_pcb **pcb, uint16_t port, tcp_accept_fn accept
     return ERR_OK;
 }
 
-void wrapper_tcp_close(struct tcp_pcb **pcb) {tcp_close(*pcb), *pcb = NULL;}
+void wrapper_tcp_close(struct tcp_pcb **pcb) { tcp_close(*pcb), *pcb = NULL; }
 
-err_t wrapper_tcp_write(struct tcp_pcb **pcb, uint8_t *data_buf, uint16_t data_len) {return tcp_write(*pcb, data_buf, data_len, TCP_WRITE_FLAG_COPY);}
+err_t wrapper_tcp_write(struct tcp_pcb **pcb, uint8_t *data_buf, uint16_t data_len) { return tcp_write(*pcb, data_buf, data_len, TCP_WRITE_FLAG_COPY); }
 #endif
 
 #if LWIP_UDP
@@ -48,7 +48,7 @@ err_t wrapper_udp_new(struct udp_pcb **pcb, wlan_bss_type bss_type) {
     return ERR_OK;
 }
 
-void wrapper_udp_remove(struct udp_pcb **pcb) {udp_remove(*pcb), *pcb = NULL;}
+void wrapper_udp_remove(struct udp_pcb **pcb) { udp_remove(*pcb), *pcb = NULL; }
 
 err_t wrapper_udp_bind(struct udp_pcb **pcb, uint16_t port, udp_recv_fn recv) {
     err_t err = udp_bind(*pcb, IP_ADDR_ANY, port);
@@ -58,9 +58,9 @@ err_t wrapper_udp_bind(struct udp_pcb **pcb, uint16_t port, udp_recv_fn recv) {
 }
 
 #if UDP_USE_CONNECTION
-err_t wrapper_udp_connect(struct udp_pcb **pcb, const ip_addr_t *ipaddr, uint16_t port) {return udp_connect(*pcb, ipaddr, port);}
+err_t wrapper_udp_connect(struct udp_pcb **pcb, const ip_addr_t *ipaddr, uint16_t port) { return udp_connect(*pcb, ipaddr, port); }
 
-void wrapper_udp_disconnect(struct udp_pcb **pcb) {udp_disconnect(*pcb);}
+void wrapper_udp_disconnect(struct udp_pcb **pcb) { udp_disconnect(*pcb); }
 
 err_t wrapper_udp_send(struct udp_pcb **pcb, uint8_t *data_buf, uint16_t data_len) {
     struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, data_len, PBUF_ROM);

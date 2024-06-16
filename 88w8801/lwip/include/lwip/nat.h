@@ -31,8 +31,8 @@
  * Date           Author       Notes
  * 2015-01-26     Hichard      porting to RT-Thread
  * 2015-01-27     Bernard      code cleanup for lwIP in RT-Thread
- * 2023-06-17     Glif         Code cleanup and refactoring
-*/
+ * 2024-06-06     Glif         Code cleanup and refactoring
+ */
 #ifndef _LWIP_IPV4_NAT_
 #define _LWIP_IPV4_NAT_
 #include "lwip/opt.h"

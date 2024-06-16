@@ -1,6 +1,7 @@
 #ifndef _88W8801_CORE_
 #define _88W8801_CORE_
 #include <stdint.h>
+#include <stdbool.h>
 #include "88w8801/88w8801.h"
 
 typedef enum {
@@ -773,35 +774,35 @@ typedef struct {
 
 typedef struct {
     /* Capability bit map: ESS */
-    uint8_t ess: 1;
+    uint8_t ess : 1;
     /* Capability bit map: IBSS */
-    uint8_t ibss: 1;
+    uint8_t ibss : 1;
     /* Capability bit map: CF pollable */
-    uint8_t cf_pollable: 1;
+    uint8_t cf_pollable : 1;
     /* Capability bit map: CF poll request */
-    uint8_t cf_poll_rqst: 1;
+    uint8_t cf_poll_rqst : 1;
     /* Capability bit map: Privacy */
-    uint8_t privacy: 1;
+    uint8_t privacy : 1;
     /* Capability bit map: Short preamble */
-    uint8_t short_preamble: 1;
+    uint8_t short_preamble : 1;
     /* Capability bit map: PBCC */
-    uint8_t pbcc: 1;
+    uint8_t pbcc : 1;
     /* Capability bit map: Channel agility */
-    uint8_t chan_agility: 1;
+    uint8_t chan_agility : 1;
     /* Capability bit map: Spectrum management */
-    uint8_t spectrum_mgmt: 1;
+    uint8_t spectrum_mgmt : 1;
     /* Capability bit map: Reserved */
-    uint8_t rsrvd3: 1;
+    uint8_t rsrvd3 : 1;
     /* Capability bit map: Short slot time */
-    uint8_t short_slot_time: 1;
+    uint8_t short_slot_time : 1;
     /* Capability bit map: APSD */
-    uint8_t apsd: 1;
+    uint8_t apsd : 1;
     /* Capability bit map: Reserved */
-    uint8_t rsvrd2: 1;
+    uint8_t rsvrd2 : 1;
     /* Capability bit map: DSS OFDM */
-    uint8_t dsss_ofdm: 1;
+    uint8_t dsss_ofdm : 1;
     /* Capability bit map: Reserved */
-    uint8_t rsrvd1: 2;
+    uint8_t rsrvd1 : 2;
 } WLAN_PACK_STRUCT IEEEtypes_CapInfo_t;
 
 typedef uint16_t IEEEtypes_AId_t;
@@ -907,29 +908,29 @@ typedef struct {
 
 typedef struct {
     /* Parameter set count */
-    uint8_t para_set_count: 4;
+    uint8_t para_set_count : 4;
     /* Reserved */
-    uint8_t reserved: 3;
+    uint8_t reserved : 3;
     /* QoS UAPSD */
-    uint8_t qos_uapsd: 1;
+    uint8_t qos_uapsd : 1;
 } WLAN_PACK_STRUCT IEEEtypes_WmmQosInfo_t;
 
 typedef struct {
     /* Aifsn */
-    uint8_t aifsn: 4;
+    uint8_t aifsn : 4;
     /* Acm */
-    uint8_t acm: 1;
+    uint8_t acm : 1;
     /* Aci */
-    uint8_t aci: 2;
+    uint8_t aci : 2;
     /* Reserved */
-    uint8_t reserved: 1;
+    uint8_t reserved : 1;
 } WLAN_PACK_STRUCT IEEEtypes_WmmAciAifsn_t;
 
 typedef struct {
     /* Minimum ecw */
-    uint8_t ecw_min: 4;
+    uint8_t ecw_min : 4;
     /* Maximum ecw */
-    uint8_t ecw_max: 4;
+    uint8_t ecw_max : 4;
 } WLAN_PACK_STRUCT IEEEtypes_WmmEcw_t;
 
 typedef struct {
@@ -957,7 +958,7 @@ typedef struct {
 
 typedef struct {
     uint8_t type;
-    uint8_t length; // 数据域的大小
+    uint8_t length;
 } WLAN_PACK_STRUCT IEEEHeader;
 
 typedef struct {
@@ -966,7 +967,7 @@ typedef struct {
 } WLAN_PACK_STRUCT IEEEType;
 
 typedef struct {
-    uint16_t ie_length; // Total information element length (without sizeof(ie_length))
+    uint16_t ie_length; // Total information element length, without sizeof(ie_length)
     uint8_t bssid[MAC_ADDR_LENGTH]; // BSSID
     uint8_t rssi; // RSSI value as received from peer
     uint64_t pkt_time_stamp; // Timestamp
@@ -977,12 +978,12 @@ typedef struct {
 
 // 已知数据域的大小，求整个结构体的大小
 // 例如定义一个很大的buffer，然后定义一个IEEEType *指向该buffer
-// buffer接收到数据后，要获取接收到的IEEEType数据实际大小不能用sizeof(IEEEType)，因为定义IEEEType结构体时data的长度定义的是1
-// 此时就应使用TLV_STRUCTLEN(*p)
-#define TLV_STRUCTLEN(tlv) (sizeof((tlv).header) + (tlv).header.length)
+// buffer接收到数据后，要获取接收到的IEEEType实际大小不能用sizeof(IEEEType)，因为结构体中data的长度定义为1
+// 此时应使用TLV_STRUCTLEN(p)
+#define TLV_STRUCTLEN(tlv) (sizeof((tlv)->header) + (tlv)->header.length)
 
-// 已知TLV的地址和大小, 求下一个TLV的地址
-#define TLV_NEXT(tlv) ((uint8_t *)(tlv) + TLV_STRUCTLEN(*(tlv)))
+// 已知TLV的地址和大小，求下一个TLV的地址
+#define TLV_NEXT(tlv) ((uint8_t *)(tlv) + TLV_STRUCTLEN(tlv))
 
 typedef struct {
     /* HW interface version number */
@@ -1186,7 +1187,7 @@ typedef struct {
     uint16_t cfg_index;
     /* Power group configuration mode */
     uint32_t mode;
-    /* MrvlTypes_Power_Group_t PowerGrpCfg[0]; */
+    /* MrvlTypes_Power_Group_t PowerGrpCfg[1]; */
 } WLAN_PACK_STRUCT HOST_DS_TXPWR_CFG;
 
 typedef struct {
@@ -1326,19 +1327,19 @@ typedef struct {
 
 typedef struct {
     /* Channel scan mode passive flag */
-    uint8_t passive_scan: 1;
+    uint8_t passive_scan : 1;
     /* Disble channel filtering flag */
-    uint8_t disable_chan_filt: 1;
+    uint8_t disable_chan_filt : 1;
     /* Multidomain scan mode */
-    uint8_t multidomain_scan: 1;
+    uint8_t multidomain_scan : 1;
     /* Enable probe response timeout */
-    uint8_t rsp_timeout_en: 1;
+    uint8_t rsp_timeout_en : 1;
     /* Enable hidden ssid report */
-    uint8_t hidden_ssid_report: 1;
+    uint8_t hidden_ssid_report : 1;
     /* First channel in scan */
-    uint8_t first_chan: 1;
+    uint8_t first_chan : 1;
     /* Reserved */
-    uint8_t reserved_6_7: 2;
+    uint8_t reserved_6_7 : 2;
 } WLAN_PACK_STRUCT ChanScanMode_t;
 
 typedef enum {
@@ -1798,9 +1799,9 @@ typedef struct {
     /* Start, stop or get */
     wlan_wmm_queue_stats_action_e action;
     /* Set if select_bin is up, clear for AC */
-    uint8_t select_is_userpri: 1;
+    uint8_t select_is_userpri : 1;
     /* WMM_AC_BK(0) to WMM_AC_VO(3) or TID */
-    uint8_t select_bin: 7;
+    uint8_t select_bin : 7;
     /* Number of successful packets transmitted */
     uint16_t pkt_count;
     /* Packets lost, not included in PktCount */
@@ -2042,7 +2043,7 @@ typedef struct {
     /* IE length */
     uint16_t ie_length;
     /* IE buffer */
-    uint8_t ie_buffer[0];
+    uint8_t ie_buffer[1];
 } WLAN_PACK_STRUCT custom_ie;
 
 typedef struct {
@@ -2179,7 +2180,7 @@ typedef struct {
 typedef struct {
     /* STA number */
     uint16_t sta_count;
-    /* MrvlIEtypes_sta_info_t sta_info[0]; */
+    /* MrvlIEtypes_sta_info_t sta_info[1]; */
 } WLAN_PACK_STRUCT HOST_DS_STA_LIST;
 
 typedef struct {
@@ -2298,13 +2299,13 @@ typedef struct {
     uint8_t num_of_fields;
     uint8_t pkt_type;
     uint16_t max_coalescing_delay;
-    coalesce_filt_field_param params[0];
+    coalesce_filt_field_param params[1];
 } WLAN_PACK_STRUCT coalesce_receive_filt_rule;
 
 typedef struct {
     uint16_t action;
     uint16_t num_of_rules;
-    coalesce_receive_filt_rule rule[0];
+    coalesce_receive_filt_rule rule[1];
 } WLAN_PACK_STRUCT HOST_DS_COALESCE_CONFIG;
 
 typedef struct {
@@ -2339,7 +2340,7 @@ typedef struct {
     /* Header */
     MrvlIEtypesHeader_t header;
     /* EAPoL packet buffer */
-    uint8_t pkt_buf[0];
+    uint8_t pkt_buf[1];
 } WLAN_PACK_STRUCT MrvlIEtypes_eapol_pkt_t;
 
 typedef struct {
@@ -2550,7 +2551,8 @@ typedef struct {
     uint8_t pkt_delay_2ms;
     /* Reserved */
     uint8_t reserved1;
-    uint8_t payload[0]; // 数据链路层上的帧
+    /* 数据链路层上的帧 */
+    uint8_t payload[];
 } WLAN_PACK_STRUCT TxPD;
 
 typedef struct {
@@ -2585,7 +2587,8 @@ typedef struct {
     uint8_t ht_info;
     /* Reserved */
     uint8_t reserved;
-    uint8_t payload[0]; // 数据链路层上的帧
+    /* 数据链路层上的帧 */
+    uint8_t payload[];
 } WLAN_PACK_STRUCT RxPD;
 
 typedef enum {
@@ -2640,9 +2643,9 @@ uint8_t wlan_scan(uint8_t *channel, uint8_t channel_num, uint16_t max_time);
 uint8_t wlan_scan_ssid(uint8_t *ssid, uint8_t ssid_len, uint16_t max_time);
 uint8_t wlan_sta_connect(uint8_t *ssid, uint8_t ssid_len, uint8_t *pwd, uint8_t pwd_len);
 uint8_t wlan_sta_disconnect(void);
-uint8_t wlan_ap_start(uint8_t *ssid, uint8_t ssid_len, uint8_t *pwd, uint8_t pwd_len, wlan_security_type sec_type, _Bool broadcast_ssid);
+uint8_t wlan_ap_start(uint8_t *ssid, uint8_t ssid_len, uint8_t *pwd, uint8_t pwd_len, wlan_security_type sec_type, bool broadcast_ssid);
 uint8_t wlan_ap_stop(void);
-uint8_t wlan_ap_show(void);
+void wlan_ap_show(void);
 uint8_t wlan_ap_deauth(uint8_t *mac_addr);
 uint8_t wlan_send_data(uint8_t *data_buf, uint16_t data_len, wlan_bss_type bss_type);
 #endif

@@ -623,7 +623,7 @@ ip4_input(struct pbuf *p, struct netif *inp)
   if (netif == NULL) {
     /* packet not for us, route or discard */
     LWIP_DEBUGF(IP_DEBUG | LWIP_DBG_TRACE, ("ip4_input: packet not for us.\n"));
-    // Modified
+// Modified
 #if IP_FORWARD || LWIP_NAT
     u8_t state = 0;
     /* non-broadcast packet? */
@@ -701,7 +701,7 @@ ip4_input(struct pbuf *p, struct netif *inp)
   ip_data.current_ip4_header = iphdr;
   ip_data.current_ip_header_tot_len = IPH_HL_BYTES(iphdr);
 
-  // Modified
+// Modified
 #if LWIP_NAT
   if (ip4_addr_isbroadcast(ip4_current_dest_addr(), inp) || !nat_input(p))
 #endif /* LWIP_NAT */

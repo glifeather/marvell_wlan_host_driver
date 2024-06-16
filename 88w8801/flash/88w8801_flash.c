@@ -85,7 +85,7 @@ void flashInit(flashSettings *flashsInit) {
 }
 
 uint32_t flashGetJEDECID(void) {
-    uint8_t pu8Data[4] = {};
+    uint8_t pu8Data[4] = {0};
     CS_RESET;
     flashWriteData8(JEDEC_ID);
     *(pu8Data + 2) = flashWriteData8(PLACEHOLDER);

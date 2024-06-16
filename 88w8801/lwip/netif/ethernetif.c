@@ -201,7 +201,7 @@ low_level_input(struct netif *netif) {
 #endif
 
     // Modified
-    pbuf_take(p, netif->state + ((RxPD *)netif->state)->rx_pkt_offset + SDIO_HDR_SIZE, len);
+    pbuf_take(p, (u8_t *)netif->state + ((RxPD *)netif->state)->rx_pkt_offset + SDIO_HDR_SIZE, len);
 
     MIB2_STATS_NETIF_ADD(netif, ifinoctets, p->tot_len);
     if (((u8_t *)p->payload)[0] & 1) {
@@ -346,7 +346,7 @@ void ethernetif_netif_init(u8_t *mac_addr) {
   lwip_sta.name[0] = lwip_uap.name[0] = IFNAME_WLAN;
   lwip_sta.name[1] = IFNAME_STA;
   lwip_uap.name[1] = IFNAME_UAP;
-  ip4_addr_t ipaddr = {}, netmask = {}, gateway = {};
+  ip4_addr_t ipaddr = {0}, netmask = {0}, gateway = {0};
   /* Configure netif w0 - STA */
   LWIP_DEBUGF(NETIF_DEBUG, ("configure lwip_sta\n"));
   netif_add(&lwip_sta, &ipaddr, &netmask, &gateway, NULL, ethernetif_init, ethernet_input);
@@ -377,24 +377,26 @@ void ethernetif_data_input(u8_t *rx_buf, u8_t bss_type) {
   case BSS_TYPE_UAP:
     lwip_uap.state = rx_buf;
     ethernetif_input(&lwip_uap);
+    break;
   }
 }
 
 void ethernetif_link_down(u8_t bss_type) {
   switch (bss_type) {
   case BSS_TYPE_STA:
-  #if LWIP_DHCP
+#if LWIP_DHCP
     LWIP_DEBUGF(NETIF_DEBUG, ("stop DHCP client\n"));
     dhcp_release_and_stop(&lwip_sta);
-  #endif
+#endif
     netif_set_link_down(&lwip_sta);
     break;
   case BSS_TYPE_UAP:
-  #if LWIP_DHCPD
+#if LWIP_DHCPD
     LWIP_DEBUGF(NETIF_DEBUG, ("stop DHCP server\n"));
     dhcpd_stop();
-  #endif
+#endif
     netif_set_link_down(&lwip_uap);
+    break;
   }
 }
 
@@ -406,17 +408,18 @@ void ethernetif_link_up(u8_t bss_type, u8_t *access) {
   switch (bss_type) {
   case BSS_TYPE_STA:
     netif_set_link_up(&lwip_sta);
-  #if LWIP_DHCP
+#if LWIP_DHCP
     LWIP_DEBUGF(NETIF_DEBUG, ("start DHCP client\n"));
     if (!netif_dhcp_data(&lwip_sta)) dhcp_start(&lwip_sta);
-  #endif
+#endif
     break;
   case BSS_TYPE_UAP:
     netif_set_link_up(&lwip_uap);
-  #if LWIP_DHCPD
+#if LWIP_DHCPD
     LWIP_DEBUGF(NETIF_DEBUG, ("start DHCP server\n"));
     dhcpd_start(&lwip_uap, access);
-  #endif
+#endif
+    break;
   }
 }
 

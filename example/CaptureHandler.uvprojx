@@ -781,8 +781,28 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>ov2640</GroupName>
+          <Files>
+            <File>
+              <FileName>ov2640.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Module\ov2640\ov2640.c</FilePath>
+            </File>
+            <File>
+              <FileName>sccb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Module\ov2640\sccb.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>st7735</GroupName>
           <Files>
+            <File>
+              <FileName>sbc_data.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Module\st7735\sbc_data.c</FilePath>
+            </File>
             <File>
               <FileName>st7735.c</FileName>
               <FileType>1</FileType>

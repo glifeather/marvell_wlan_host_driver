@@ -10,7 +10,9 @@
 #include <stdio.h>
 #define CORE_DEBUG printf
 #else
-#define CORE_DEBUG(...)
+#define CORE_DEBUG(...) \
+    do { \
+    } while (0)
 #endif
 
 uint8_t wlan_tx_buf[TX_BUF_SIZE];
@@ -31,10 +33,11 @@ static uint8_t wlan_get_write_port(uint8_t *port);
 static uint8_t wlan_prepare_cmd(uint16_t cmd_id, uint16_t cmd_action, uint8_t *data_buf, uint16_t data_len);
 static uint8_t wlan_download_fw(void);
 
-/* 函数名: wlan_init
- * 参数: callback(IN) -> 回调函数表
- * 返回值: 返回执行结果
- * 描述: 初始化芯片 */
+/**
+ * @param callback 回调函数表
+ * @return core_err_e中某一状态码
+ * @brief 初始化芯片
+ */
 uint8_t wlan_init(wlan_cb_t *callback) {
     wlan_callback = callback;
     /* Init core */
@@ -42,54 +45,59 @@ uint8_t wlan_init(wlan_cb_t *callback) {
     /* Port 0 is reserved for command */
     wlan_core.curr_rd_port = wlan_core.curr_wr_port = 1;
     /* Init control port */
-    uint8_t ctrl_port[4] = {};
-    if (sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, IO_PORT_0_REG, 0, ctrl_port) || sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, IO_PORT_1_REG, 0, ctrl_port + 1) || sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, IO_PORT_2_REG, 0, ctrl_port + 2)) return CORE_ERR_UNKNOWN_IO_PORT;
+    uint8_t ctrl_port[4] = {0};
+    if (sdio_cmd52(false, SDIO_FUNC_1, IO_PORT_0_REG, 0, ctrl_port) || sdio_cmd52(false, SDIO_FUNC_1, IO_PORT_1_REG, 0, ctrl_port + 1) || sdio_cmd52(false, SDIO_FUNC_1, IO_PORT_2_REG, 0, ctrl_port + 2)) return CORE_ERR_UNKNOWN_IO_PORT;
     /* Little endian */
-    CORE_DEBUG("Control port: 0x%X\n", *(uint32_t *)ctrl_port);
+    CORE_DEBUG("Control port: 0x%lX\n", *(uint32_t *)ctrl_port);
     wlan_core.ctrl_port = *(uint32_t *)ctrl_port;
     /* Download firmware */
     if ((*ctrl_port = wlan_download_fw())) return *ctrl_port;
     /* Enable host interrupt for SDIO and init firmware */
-    return sdio_cmd52(SDIO_EXCU_WRITE, SDIO_FUNC_1, HOST_INT_MASK_REG, UP_LD_HOST_INT_MASK, NULL) ? CORE_ERR_INT_MASK_FAILED : wlan_prepare_cmd(HOST_ID_FUNC_INIT, HOST_ACT_GEN_GET, NULL, 0);
+    return sdio_cmd52(true, SDIO_FUNC_1, HOST_INT_MASK_REG, UP_LD_HOST_INT_MASK, NULL) ? CORE_ERR_INT_MASK_FAILED : wlan_prepare_cmd(HOST_ID_FUNC_INIT, HOST_ACT_GEN_GET, NULL, 0);
 }
 
-/* 函数名: wlan_shutdown
- * 参数: NULL
- * 返回值: 返回执行结果
- * 描述: 停止芯片运行 */
-uint8_t wlan_shutdown(void) {return wlan_prepare_cmd(HOST_ID_FUNC_SHUTDOWN, HOST_ACT_GEN_GET, NULL, 0);}
+/**
+ * @return core_err_e中某一状态码
+ * @brief 停止芯片运行
+ */
+uint8_t wlan_shutdown(void) { return wlan_prepare_cmd(HOST_ID_FUNC_SHUTDOWN, HOST_ACT_GEN_GET, NULL, 0); }
 
-/* 函数名: wlan_process_packet
- * 参数: NULL
- * 返回值: 返回执行结果
- * 描述: 发生SDIO中断时读取封包并解析 */
+/**
+ * @return core_err_e中某一状态码
+ * @brief 发生SDIO中断时读取封包并解析
+ */
 uint8_t wlan_process_packet(void) {
     /* 读取控制寄存器并清除芯片中断 */
-    if (sdio_cmd53(SDIO_EXCU_READ, SDIO_FUNC_1, REG_PORT, 0, mp_regs_buf, MAX_MP_REGS) || sdio_cmd52(SDIO_EXCU_WRITE, SDIO_FUNC_1, HOST_INT_STATUS_REG, *(mp_regs_buf + HOST_INT_STATUS_REG) & ~UP_LD_HOST_INT_STATUS, NULL)) return CORE_ERR_INT_STATUS_FAILED;
+    if (sdio_cmd53(false, SDIO_FUNC_1, REG_PORT, 0, mp_regs_buf, MAX_MP_REGS) || sdio_cmd52(true, SDIO_FUNC_1, HOST_INT_STATUS_REG, *(mp_regs_buf + HOST_INT_STATUS_REG) & ~UP_LD_HOST_INT_STATUS, NULL)) return CORE_ERR_INT_STATUS_FAILED;
     wlan_core.read_bitmap = *(mp_regs_buf + RD_BITMAP_U) << 8 | *(mp_regs_buf + RD_BITMAP_L);
     wlan_core.write_bitmap = *(mp_regs_buf + WR_BITMAP_U) << 8 | *(mp_regs_buf + WR_BITMAP_L);
     uint8_t read_port;
     while (!wlan_get_read_port(&read_port)) {
         CORE_DEBUG("Rx: Port %d, Size %d\n", read_port, *(mp_regs_buf + RD_LEN_P0_U + (read_port << 1)) << 8 | *(mp_regs_buf + RD_LEN_P0_L + (read_port << 1)));
         /* 使用CMD53读取数据 */
-        if (sdio_cmd53(SDIO_EXCU_READ, SDIO_FUNC_1, wlan_core.ctrl_port + read_port, 0, wlan_rx_buf, *(mp_regs_buf + RD_LEN_P0_U + (read_port << 1)) << 8 | *(mp_regs_buf + RD_LEN_P0_L + (read_port << 1)))) return CORE_ERR_INVALID_RX_BUFFER;
+        if (sdio_cmd53(false, SDIO_FUNC_1, wlan_core.ctrl_port + read_port, 0, wlan_rx_buf, *(mp_regs_buf + RD_LEN_P0_U + (read_port << 1)) << 8 | *(mp_regs_buf + RD_LEN_P0_L + (read_port << 1)))) return CORE_ERR_INVALID_RX_BUFFER;
         /* 解析从芯片发来的数据 */
         switch (*(wlan_rx_buf + 2)) {
-        case TYPE_DATA: if ((read_port = wlan_process_data(wlan_rx_buf))) return read_port; break;
-        case TYPE_CMD_CMDRSP: if ((read_port = wlan_process_cmdrsp(wlan_rx_buf))) return read_port; break;
-        case TYPE_EVENT: if ((read_port = wlan_process_event(wlan_rx_buf))) return read_port; break;
-        default: CORE_DEBUG("Warning: Invalid rx 0x%X\n", *(wlan_rx_buf + 2));
+        case TYPE_DATA: read_port = wlan_process_data(wlan_rx_buf); break;
+        case TYPE_CMD_CMDRSP: read_port = wlan_process_cmdrsp(wlan_rx_buf); break;
+        case TYPE_EVENT: read_port = wlan_process_event(wlan_rx_buf); break;
+        default:
+            CORE_DEBUG("Warning: Invalid rx 0x%X\n", *(wlan_rx_buf + 2));
+            read_port = CORE_ERR_OK;
+            break;
         }
+        if (read_port) return read_port;
     }
     return CORE_ERR_OK;
 }
 
-/* 函数名: wlan_scan
- * 参数: channel(IN) -> 需搜索的通道
-        channel_num(IN) -> 搜索通道个数
-        max_time(IN) -> 最大搜索时间
- * 返回值: 返回执行结果
- * 描述: 执行普通搜索 */
+/**
+ * @param channel 需搜索的通道
+ * @param channel_num 搜索通道个数
+ * @param max_time 最大搜索时间
+ * @return core_err_e中某一状态码
+ * @brief 执行普通搜索
+ */
 uint8_t wlan_scan(uint8_t *channel, uint8_t channel_num, uint16_t max_time) {
     uint16_t scan_para_len = sizeof(MrvlIEtypesHeader_t) + channel_num * sizeof(ChanScanParamSet_t);
     uint8_t scan_para[scan_para_len];
@@ -107,12 +115,13 @@ uint8_t wlan_scan(uint8_t *channel, uint8_t channel_num, uint16_t max_time) {
     return wlan_prepare_cmd(HOST_ID_802_11_SCAN, HOST_ACT_GEN_GET, scan_para, scan_para_len);
 }
 
-/* 函数名: wlan_scan_ssid
- * 参数: ssid(IN) -> AP名称
-        ssid_len(IN) -> AP名称长度
-        max_time(IN) -> 最大搜索时间
- * 返回值: 返回执行结果
- * 描述: 执行特定搜索 */
+/**
+ * @param ssid AP名称
+ * @param ssid_len AP名称长度
+ * @param max_time 最大搜索时间
+ * @return core_err_e中某一状态码
+ * @brief 执行特定搜索
+ */
 uint8_t wlan_scan_ssid(uint8_t *ssid, uint8_t ssid_len, uint16_t max_time) {
     uint16_t scan_para_len = 2 * sizeof(MrvlIEtypesHeader_t) + ssid_len + MAX_CHANNEL_NUM * sizeof(ChanScanParamSet_t);
     uint8_t scan_para[scan_para_len];
@@ -135,13 +144,14 @@ uint8_t wlan_scan_ssid(uint8_t *ssid, uint8_t ssid_len, uint16_t max_time) {
     return wlan_prepare_cmd(HOST_ID_802_11_SCAN, HOST_ACT_GEN_GET, scan_para, scan_para_len);
 }
 
-/* 函数名: wlan_sta_connect
- * 参数: ssid(IN) -> AP名称
-        ssid_len(IN) -> AP名称长度
-        pwd(IN) -> AP密码
-        pwd_len(IN) -> AP密码长度
- * 返回值: 返回执行结果
- * 描述: 连接AP */
+/**
+ * @param ssid AP名称
+ * @param ssid_len AP名称长度
+ * @param pwd AP密码
+ * @param pwd_len AP密码长度
+ * @return core_err_e中某一状态码
+ * @brief 连接AP
+ */
 uint8_t wlan_sta_connect(uint8_t *ssid, uint8_t ssid_len, uint8_t *pwd, uint8_t pwd_len) {
     memcpy(wlan_core.ap_info.ssid, ssid, ssid_len);
     wlan_core.ap_info.ssid_len = ssid_len;
@@ -151,22 +161,23 @@ uint8_t wlan_sta_connect(uint8_t *ssid, uint8_t ssid_len, uint8_t *pwd, uint8_t 
     return (ssid_len = wlan_scan_ssid(ssid, ssid_len, MAX_SCAN_TIME)) ? ssid_len : (wlan_core.ap_info.con_status = CON_STATUS_CONNECTING, CORE_ERR_OK);
 }
 
-/* 函数名: wlan_sta_disconnect
- * 参数: NULL
- * 返回值: 返回执行结果
- * 描述: STA模式下主动断开 */
-uint8_t wlan_sta_disconnect(void) {return wlan_core.ap_info.con_status != CON_STATUS_CONNECTED ? CORE_ERR_OK : wlan_prepare_cmd(HOST_ID_802_11_DEAUTHENTICATE, HOST_ACT_GEN_GET, NULL, 0);}
+/**
+ * @return core_err_e中某一状态码
+ * @brief STA模式下主动断开
+ */
+uint8_t wlan_sta_disconnect(void) { return wlan_core.ap_info.con_status != CON_STATUS_CONNECTED ? CORE_ERR_OK : wlan_prepare_cmd(HOST_ID_802_11_DEAUTHENTICATE, HOST_ACT_GEN_GET, NULL, 0); }
 
-/* 函数名: wlan_ap_start
- * 参数: ssid(IN) -> AP名称
-        ssid_len(IN) -> AP名称长度
-        pwd(IN) -> AP密码
-        pwd_len(IN) -> AP密码长度
-        sec_type(IN) -> AP认证类型
-        broadcast_ssid(IN) -> SSID是否可见
- * 返回值: 返回执行结果
- * 描述: 创建AP，不带参数则创建一个名称为Marvell Micro AP且无认证类型的AP */
-uint8_t wlan_ap_start(uint8_t *ssid, uint8_t ssid_len, uint8_t *pwd, uint8_t pwd_len, wlan_security_type sec_type, _Bool broadcast_ssid) {
+/**
+ * @param ssid AP名称
+ * @param ssid_len AP名称长度
+ * @param pwd AP密码
+ * @param pwd_len AP密码长度
+ * @param sec_type AP认证类型
+ * @param broadcast_ssid SSID是否可见
+ * @return core_err_e中某一状态码
+ * @brief 创建AP，不带参数则创建一个名称为Marvell Micro AP且无认证类型的AP
+ */
+uint8_t wlan_ap_start(uint8_t *ssid, uint8_t ssid_len, uint8_t *pwd, uint8_t pwd_len, wlan_security_type sec_type, bool broadcast_ssid) {
     uint8_t sys_config[0x100], sys_config_len = 0;
     /* 组合SSID */
     if (ssid && ssid_len && ssid_len < MAX_SSID_LENGTH) {
@@ -216,33 +227,31 @@ uint8_t wlan_ap_start(uint8_t *ssid, uint8_t ssid_len, uint8_t *pwd, uint8_t pwd
     return sys_config_len ? wlan_prepare_cmd(HOST_ID_APCMD_SYS_CONFIGURE, HOST_ACT_GEN_SET, sys_config, sys_config_len) : wlan_prepare_cmd(HOST_ID_APCMD_BSS_START, HOST_ACT_GEN_GET, NULL, 0);
 }
 
-/* 函数名: wlan_ap_stop
- * 参数: NULL
- * 返回值: 返回执行结果
- * 描述: 关闭AP */
-uint8_t wlan_ap_stop(void) {return wlan_prepare_cmd(HOST_ID_APCMD_BSS_STOP, HOST_ACT_GEN_GET, NULL, 0);}
+/**
+ * @return core_err_e中某一状态码
+ * @brief 关闭AP
+ */
+uint8_t wlan_ap_stop(void) { return wlan_prepare_cmd(HOST_ID_APCMD_BSS_STOP, HOST_ACT_GEN_GET, NULL, 0); }
 
-/* 函数名: wlan_ap_show
- * 参数: NULL
- * 返回值: 返回执行结果
- * 描述: AP模式下显示接入STA索引与MAC地址 */
-uint8_t wlan_ap_show(void) {
-    for (uint8_t index = 0; index < MAX_CLIENT_NUM; ++index) if ((wlan_core.sta_info + index)->used) CORE_DEBUG("STA MAC (Index %02d): 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X\n", index, *((wlan_core.sta_info + index)->sta_mac_addr), *((wlan_core.sta_info + index)->sta_mac_addr + 1), *((wlan_core.sta_info + index)->sta_mac_addr + 2), *((wlan_core.sta_info + index)->sta_mac_addr + 3), *((wlan_core.sta_info + index)->sta_mac_addr + 4), *((wlan_core.sta_info + index)->sta_mac_addr + 5));
-    return CORE_ERR_OK;
-}
+/**
+ * @brief AP模式下显示接入STA索引与MAC地址
+ */
+void wlan_ap_show(void) { for (uint8_t index = 0; index < MAX_CLIENT_NUM; ++index) if ((wlan_core.sta_info + index)->used) CORE_DEBUG("STA MAC (Index %02d): 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X\n", index, *((wlan_core.sta_info + index)->sta_mac_addr), *((wlan_core.sta_info + index)->sta_mac_addr + 1), *((wlan_core.sta_info + index)->sta_mac_addr + 2), *((wlan_core.sta_info + index)->sta_mac_addr + 3), *((wlan_core.sta_info + index)->sta_mac_addr + 4), *((wlan_core.sta_info + index)->sta_mac_addr + 5)); }
 
-/* 函数名: wlan_ap_deauth
- * 参数: mac_addr(IN) -> STA的MAC地址
- * 返回值: 返回执行结果
- * 描述: AP模式下断开某一STA */
-uint8_t wlan_ap_deauth(uint8_t *mac_addr) {return wlan_prepare_cmd(HOST_ID_APCMD_STA_DEAUTH, HOST_ACT_GEN_GET, mac_addr, MAC_ADDR_LENGTH);}
+/**
+ * @param mac_addr STA的MAC地址
+ * @return core_err_e中某一状态码
+ * @brief AP模式下断开某一STA
+ */
+uint8_t wlan_ap_deauth(uint8_t *mac_addr) { return wlan_prepare_cmd(HOST_ID_APCMD_STA_DEAUTH, HOST_ACT_GEN_GET, mac_addr, MAC_ADDR_LENGTH); }
 
-/* 函数名: wlan_send_data
- * 参数: data_buf(IN) -> 数据缓冲区
-        data_len(IN) -> 缓冲区长度
-        bss_type(IN) -> BSS网络类型
- * 返回值: 返回执行结果
- * 描述: 发送数据 */
+/**
+ * @param data_buf 数据缓冲区
+ * @param data_len 缓冲区长度
+ * @param bss_type BSS网络类型
+ * @return core_err_e中某一状态码
+ * @brief 发送数据
+ */
 uint8_t wlan_send_data(uint8_t *data_buf, uint16_t data_len, wlan_bss_type bss_type) {
     TxPD *tx_packet = (TxPD *)wlan_tx_buf;
     tx_packet->pack_len = sizeof(TxPD) + data_len;
@@ -254,19 +263,20 @@ uint8_t wlan_send_data(uint8_t *data_buf, uint16_t data_len, wlan_bss_type bss_t
     if (data_buf) memcpy(tx_packet->payload, data_buf, data_len);
     uint8_t wr_bitmap[2];
     do {
-        if (sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, WR_BITMAP_L, 0, wr_bitmap) || sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, WR_BITMAP_U, 0, wr_bitmap + 1)) return CORE_ERR_SEND_DATA_FAILED;
+        if (sdio_cmd52(false, SDIO_FUNC_1, WR_BITMAP_L, 0, wr_bitmap) || sdio_cmd52(false, SDIO_FUNC_1, WR_BITMAP_U, 0, wr_bitmap + 1)) return CORE_ERR_SEND_DATA_FAILED;
         wlan_core.write_bitmap = *(uint16_t *)wr_bitmap;
     } while (wlan_get_write_port(wr_bitmap));
     CORE_DEBUG("Tx: Port %d, Size %d\n", *wr_bitmap, tx_packet->pack_len);
-    return sdio_cmd53(SDIO_EXCU_WRITE, SDIO_FUNC_1, wlan_core.ctrl_port + *wr_bitmap, 0, (uint8_t *)tx_packet, tx_packet->pack_len) ? CORE_ERR_SEND_DATA_FAILED : CORE_ERR_OK;
+    return sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port + *wr_bitmap, 0, (uint8_t *)tx_packet, tx_packet->pack_len) ? CORE_ERR_SEND_DATA_FAILED : CORE_ERR_OK;
 }
 
-/* 函数名: wlan_ass_supplicant_pmk_pkg
- * 参数: bssid(IN) -> MAC地址
- * 返回值: 返回执行结果
- * 描述: 组合HOST_ID_SUPPLICANT_PMK封包，用于连接时芯片四次握手认证 */
+/**
+ * @param bssid MAC地址
+ * @return core_err_e中某一状态码
+ * @brief 组合HOST_ID_SUPPLICANT_PMK封包，用于连接时芯片四次握手认证
+ */
 static uint8_t wlan_ass_supplicant_pmk_pkg(uint8_t *bssid) {
-    uint8_t pmk_tlv[64];
+    uint8_t pmk_tlv[0x80];
     MrvlIEtypes_SSIDParamSet_t *pmk_ssid_tlv = (MrvlIEtypes_SSIDParamSet_t *)pmk_tlv;
     pmk_ssid_tlv->header.type = TLV_TYPE_SSID;
     pmk_ssid_tlv->header.len = wlan_core.ap_info.ssid_len;
@@ -285,10 +295,11 @@ static uint8_t wlan_ass_supplicant_pmk_pkg(uint8_t *bssid) {
     return wlan_prepare_cmd(HOST_ID_SUPPLICANT_PMK, HOST_ACT_GEN_SET, pmk_tlv, pmk_len);
 }
 
-/* 函数名: wlan_ret_scan
- * 参数: rx_buf(IN) -> rx缓冲区
- * 返回值: 返回执行结果
- * 描述: 解析搜索命令响应，搜索的是IEEE的TLV而非Marvell的TLV */
+/**
+ * @param rx_buf rx缓冲区
+ * @return core_err_e中某一状态码
+ * @brief 解析搜索命令响应，搜索的是IEEE的TLV而非Marvell的TLV
+ */
 static uint8_t wlan_ret_scan(uint8_t *rx_buf) {
     HOST_DS_802_11_SCAN_RSP *scan_rsp = (HOST_DS_802_11_SCAN_RSP *)rx_buf;
     CORE_DEBUG("bss_descript_size: %d\nnumber_of_sets: %d\n", scan_rsp->bss_descript_size, scan_rsp->number_of_sets);
@@ -298,16 +309,15 @@ static uint8_t wlan_ret_scan(uint8_t *rx_buf) {
             CORE_DEBUG("Warning: Cannot connect to AP at this time\n");
             wlan_core.ap_info.con_status = CON_STATUS_NOT_CONNECTED;
             if (wlan_callback && wlan_callback->wlan_cb_sta_connect) wlan_callback->wlan_cb_sta_connect(CORE_ERR_UNHANDLED_STATUS);
-        }
-        else if (wlan_callback && wlan_callback->wlan_cb_scan) wlan_callback->wlan_cb_scan(CORE_ERR_OK, NULL, 0, 0, SECURITY_TYPE_NONE);
+        } else if (wlan_callback && wlan_callback->wlan_cb_scan) wlan_callback->wlan_cb_scan(CORE_ERR_OK, NULL, 0, 0, SECURITY_TYPE_NONE);
         return CORE_ERR_OK;
     }
     bss_desc_set_t *bss_desc_set = (bss_desc_set_t *)scan_rsp->bss_desc_and_tlv_buffer;
-    IEEEType *rates, *ie_params, *rsn_data_ptr, *vendor_data_ptr[8];
+    IEEEType *rates, *ie_params, *vendor_data_ptr[8], *rsn_data_ptr = NULL;
     wlan_security_type sec_type;
     wlan_vendor *vendor;
     uint16_t ie_size;
-    uint8_t ssid[MAX_SSID_LENGTH + 1], channel, vendor_tlv_count = 0;
+    uint8_t ssid[MAX_SSID_LENGTH + 1], channel = 0, vendor_tlv_count = 0;
     for (uint8_t index = 0; index < scan_rsp->number_of_sets; ++index) {
         rates = NULL;
         sec_type = SECURITY_TYPE_WEP;
@@ -336,8 +346,9 @@ static uint8_t wlan_ret_scan(uint8_t *rx_buf) {
                     *(vendor_data_ptr + vendor_tlv_count) = ie_params;
                     ++vendor_tlv_count;
                 }
+                break;
             }
-            ie_size -= TLV_STRUCTLEN(*ie_params);
+            ie_size -= TLV_STRUCTLEN(ie_params);
             ie_params = (IEEEType *)TLV_NEXT(ie_params);
         }
         if (!(bss_desc_set->cap_info & WLAN_CAPABILITY_PRIVACY)) sec_type = SECURITY_TYPE_NONE;
@@ -351,17 +362,17 @@ static uint8_t wlan_ret_scan(uint8_t *rx_buf) {
         case SECURITY_TYPE_NONE: CORE_DEBUG("%s", "OPEN"); break;
         case SECURITY_TYPE_WEP: CORE_DEBUG("%s", "WEP"); break;
         case SECURITY_TYPE_WPA: CORE_DEBUG("%s", "WPA"); break;
-        case SECURITY_TYPE_WPA2: CORE_DEBUG("%s", "WPA2");
+        case SECURITY_TYPE_WPA2: CORE_DEBUG("%s", "WPA2"); break;
         }
         CORE_DEBUG(", Mode: %s)\n", bss_desc_set->cap_info & WLAN_CAPABILITY_IBSS ? "Ad-Hoc" : "Infrastructure");
         if (rates) {
             CORE_DEBUG("Rates:");
-            for (uint8_t index = 0; index < rates->header.length; ++index) CORE_DEBUG(" %.1f Mbps", (*(rates->data + index) & 0x7F) * 0.5f);
+            for (uint8_t index = 0; index < rates->header.length; ++index) CORE_DEBUG(" %d Mbps", (*(rates->data + index) & 0x7F) >> 1);
             CORE_DEBUG("\n");
         }
         if (wlan_core.ap_info.con_status == CON_STATUS_CONNECTING) {
             /* 连接准备 */
-            uint8_t associate_para[0x100];
+            uint8_t associate_para[0x200];
             MrvlIEtypes_SSIDParamSet_t *ssid_tlv = (MrvlIEtypes_SSIDParamSet_t *)associate_para;
             ssid_tlv->header.type = TLV_TYPE_SSID;
             ssid_tlv->header.len = wlan_core.ap_info.ssid_len;
@@ -424,8 +435,7 @@ static uint8_t wlan_ret_scan(uint8_t *rx_buf) {
                 if (wlan_callback && wlan_callback->wlan_cb_sta_connect) wlan_callback->wlan_cb_sta_connect(CORE_ERR_UNHANDLED_STATUS);
                 return *rate_tlv;
             }
-        }
-        else if (wlan_callback && wlan_callback->wlan_cb_scan) wlan_callback->wlan_cb_scan(CORE_ERR_UNHANDLED_STATUS, ssid, bss_desc_set->rssi, channel, sec_type);
+        } else if (wlan_callback && wlan_callback->wlan_cb_scan) wlan_callback->wlan_cb_scan(CORE_ERR_UNHANDLED_STATUS, ssid, bss_desc_set->rssi, channel, sec_type);
         /* 解析下一个AP */
         bss_desc_set = (bss_desc_set_t *)((uint8_t *)bss_desc_set + sizeof(bss_desc_set->ie_length) + bss_desc_set->ie_length);
     }
@@ -433,10 +443,11 @@ static uint8_t wlan_ret_scan(uint8_t *rx_buf) {
     return CORE_ERR_OK;
 }
 
-/* 函数名: wlan_process_data
- * 参数: rx_buf(IN) -> rx缓冲区
- * 返回值: 返回执行结果
- * 描述: 处理数据 */
+/**
+ * @param rx_buf rx缓冲区
+ * @return core_err_e中某一状态码
+ * @brief 处理数据
+ */
 static uint8_t wlan_process_data(uint8_t *rx_buf) {
     switch (*(rx_buf + SDIO_HDR_SIZE)) {
     case BSS_TYPE_STA: ethernetif_data_input(rx_buf, BSS_TYPE_STA); break;
@@ -451,15 +462,17 @@ static uint8_t wlan_process_data(uint8_t *rx_buf) {
         else if (memcmp(payload, wlan_core.mac_addr, MAC_ADDR_LENGTH)) return wlan_send_data(payload, ((RxPD *)rx_buf)->rx_pkt_length, BSS_TYPE_UAP);
         /* 单播封包地址相同，由lwIP处理 */
         else ethernetif_data_input(rx_buf, BSS_TYPE_UAP);
+        break;
     }
     }
     return CORE_ERR_OK;
 }
 
-/* 函数名: wlan_process_cmdrsp
- * 参数: rx_buf(IN) -> rx缓冲区
- * 返回值: 返回执行结果
- * 描述: 处理命令响应 */
+/**
+ * @param rx_buf rx缓冲区
+ * @return core_err_e中某一状态码
+ * @brief 处理命令响应
+ */
 static uint8_t wlan_process_cmdrsp(uint8_t *rx_buf) {
     if (((HOST_DS_COMMAND *)rx_buf)->result != HOST_RESULT_OK) return CORE_ERR_INVALID_CMD_RESPONSE;
     switch (((HOST_DS_COMMAND *)rx_buf)->command & ~HOST_RET_BIT) {
@@ -469,16 +482,21 @@ static uint8_t wlan_process_cmdrsp(uint8_t *rx_buf) {
     case HOST_ID_802_11_SCAN: return wlan_ret_scan(rx_buf + CMD_HDR_SIZE);
     case HOST_ID_802_11_ASSOCIATE:
         switch (((HOST_DS_802_11_ASSOCIATE_RSP *)(rx_buf + CMD_HDR_SIZE))->assoc_rsp.Capability) {
-        /* 0xFFFC: Connection timeout
+        /**
+         * 0xFFFC: Connection timeout
          * 0xFFFD: Authentication refused
          * 0xFFFE: Authentication unhandled message
-         * 0xFFFF: Internal error */
-        case 0xFFFC: case 0xFFFD: case 0xFFFE: case 0xFFFF:
+         * 0xFFFF: Internal error
+         */
+        case 0xFFFC:
+        case 0xFFFD:
+        case 0xFFFE:
+        case 0xFFFF:
             CORE_DEBUG("Error: Association 0x%X\n", ((HOST_DS_802_11_ASSOCIATE_RSP *)(rx_buf + CMD_HDR_SIZE))->assoc_rsp.Capability);
             wlan_core.ap_info.con_status = CON_STATUS_NOT_CONNECTED;
             if (wlan_callback && wlan_callback->wlan_cb_sta_connect) wlan_callback->wlan_cb_sta_connect(CORE_ERR_UNHANDLED_STATUS);
             break;
-        default: CORE_DEBUG("Capability 0x%X\n", ((HOST_DS_802_11_ASSOCIATE_RSP *)(rx_buf + CMD_HDR_SIZE))->assoc_rsp.Capability);
+        default: CORE_DEBUG("Capability 0x%X\n", ((HOST_DS_802_11_ASSOCIATE_RSP *)(rx_buf + CMD_HDR_SIZE))->assoc_rsp.Capability); break;
         }
         break;
     case HOST_ID_MAC_CONTROL: return wlan_prepare_cmd(HOST_ID_GET_HW_SPEC, HOST_ACT_GEN_GET, NULL, 0);
@@ -488,23 +506,28 @@ static uint8_t wlan_process_cmdrsp(uint8_t *rx_buf) {
         if (wlan_callback && wlan_callback->wlan_cb_init) wlan_callback->wlan_cb_init(CORE_ERR_OK);
         break;
     case HOST_ID_FUNC_INIT: return wlan_prepare_cmd(HOST_ID_MAC_CONTROL, HOST_ACT_GEN_GET, NULL, HOST_ACT_MAC_RX_ON | HOST_ACT_MAC_TX_ON | HOST_ACT_MAC_ETHERNETII_ENABLE);
-    case HOST_ID_FUNC_SHUTDOWN: if (wlan_callback && wlan_callback->wlan_cb_init) wlan_callback->wlan_cb_init(CORE_ERR_UNHANDLED_STATUS); break;
+    case HOST_ID_FUNC_SHUTDOWN:
+        if (wlan_callback && wlan_callback->wlan_cb_init) wlan_callback->wlan_cb_init(CORE_ERR_UNHANDLED_STATUS);
+        break;
     case HOST_ID_APCMD_SYS_CONFIGURE: return wlan_prepare_cmd(HOST_ID_APCMD_BSS_START, HOST_ACT_GEN_GET, NULL, 0);
     case HOST_ID_APCMD_BSS_STOP:
         ethernetif_link_down(BSS_TYPE_UAP);
         if (wlan_callback && wlan_callback->wlan_cb_ap_stop) wlan_callback->wlan_cb_ap_stop();
         break;
-    case HOST_ID_SUPPLICANT_PMK: return sdio_cmd53(SDIO_EXCU_WRITE, SDIO_FUNC_1, wlan_core.ctrl_port + CTRL_PORT, 0, wlan_tx_buf, *(wlan_tx_buf + 1) << 8 | *wlan_tx_buf) ? CORE_ERR_INVALID_CMD_RESPONSE : CORE_ERR_OK;
-    case HOST_ID_802_11_DEAUTHENTICATE: case HOST_ID_APCMD_BSS_START: case HOST_ID_11N_ADDBA_RSP: break;
-    default: CORE_DEBUG("Warning: Invalid cmd response 0x%X\n", ((HOST_DS_COMMAND *)rx_buf)->command & ~HOST_RET_BIT);
+    case HOST_ID_SUPPLICANT_PMK: return sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port + CTRL_PORT, 0, wlan_tx_buf, *(wlan_tx_buf + 1) << 8 | *wlan_tx_buf) ? CORE_ERR_INVALID_CMD_RESPONSE : CORE_ERR_OK;
+    case HOST_ID_802_11_DEAUTHENTICATE:
+    case HOST_ID_APCMD_BSS_START:
+    case HOST_ID_11N_ADDBA_RSP: break;
+    default: CORE_DEBUG("Warning: Invalid cmd response 0x%X\n", ((HOST_DS_COMMAND *)rx_buf)->command & ~HOST_RET_BIT); break;
     }
     return CORE_ERR_OK;
 }
 
-/* 函数名: wlan_process_event
- * 参数: rx_buf(IN) -> rx缓冲区
- * 返回值: 返回执行结果
- * 描述: 处理事件 */
+/**
+ * @param rx_buf rx缓冲区
+ * @return core_err_e中某一状态码
+ * @brief 处理事件
+ */
 static uint8_t wlan_process_event(uint8_t *rx_buf) {
     switch (*(uint16_t *)(rx_buf + SDIO_HDR_SIZE)) {
     case EVENT_DEAUTHENTICATED:
@@ -552,8 +575,7 @@ static uint8_t wlan_process_event(uint8_t *rx_buf) {
         if (wlan_callback) {
             ethernetif_link_up(BSS_TYPE_UAP, wlan_callback->wlan_cb_ap_connect);
             if (wlan_callback->wlan_cb_ap_start) wlan_callback->wlan_cb_ap_start();
-        }
-        else ethernetif_link_up(BSS_TYPE_UAP, NULL);
+        } else ethernetif_link_up(BSS_TYPE_UAP, NULL);
         break;
     /* 收到ADDBA请求 */
     case EVENT_ADDBA: return wlan_prepare_cmd(HOST_ID_11N_ADDBA_RSP, HOST_ACT_GEN_GET, rx_buf + EVENT_HDR_SIZE, 0);
@@ -565,50 +587,50 @@ static uint8_t wlan_process_event(uint8_t *rx_buf) {
     case EVENT_MICRO_AP_BSS_ACTIVE: CORE_DEBUG("EVENT_MICRO_AP_BSS_ACTIVE\n"); break;
     /* WPA/WPA2 AP模式下，STA完成四次握手 */
     case EVENT_MICRO_AP_EV_RSN_CONNECT: CORE_DEBUG("EVENT_MICRO_AP_EV_RSN_CONNECT\n"); break;
-    default: CORE_DEBUG("Warning: Unknown event ID 0x%X\n", *(uint16_t *)(rx_buf + SDIO_HDR_SIZE));
+    default: CORE_DEBUG("Warning: Unknown event ID 0x%X\n", *(uint16_t *)(rx_buf + SDIO_HDR_SIZE)); break;
     }
     return CORE_ERR_OK;
 }
 
-/* 函数名: wlan_get_read_port
- * 参数: port(OUT) -> 返回read port
- * 返回值: 返回执行结果
- * 描述: 获取read port */
+/**
+ * @param port 读取端口
+ * @return core_err_e中某一状态码
+ * @brief 获取读取端口
+ */
 static uint8_t wlan_get_read_port(uint8_t *port) {
     if (wlan_core.read_bitmap & CTRL_PORT_MASK) {
         wlan_core.read_bitmap &= ~CTRL_PORT_MASK;
         *port = CTRL_PORT;
-    }
-    else if (wlan_core.read_bitmap & 1 << wlan_core.curr_rd_port) {
+    } else if (wlan_core.read_bitmap & 1 << wlan_core.curr_rd_port) {
         wlan_core.read_bitmap &= ~(1 << wlan_core.curr_rd_port);
         *port = wlan_core.curr_rd_port;
         if (++wlan_core.curr_rd_port == MAX_PORT) wlan_core.curr_rd_port = 1;
-    }
-    else return CORE_ERR_END_OF_READ_PORT;
+    } else return CORE_ERR_END_OF_READ_PORT;
     return CORE_ERR_OK;
 }
 
-/* 函数名: wlan_get_write_port
- * 参数: port(OUT) -> 返回write port
- * 返回值: 返回执行结果
- * 描述: 获取write port */
+/**
+ * @param port 写入端口
+ * @return core_err_e中某一状态码
+ * @brief 获取写入端口
+ */
 static uint8_t wlan_get_write_port(uint8_t *port) {
     if (wlan_core.write_bitmap & 1 << wlan_core.curr_wr_port) {
         wlan_core.write_bitmap &= ~(1 << wlan_core.curr_wr_port);
         *port = wlan_core.curr_wr_port;
         if (++wlan_core.curr_wr_port == wlan_core.mp_end_port) wlan_core.curr_wr_port = 1;
-    }
-    else return CORE_ERR_OCCUPIED_WRITE_PORT;
+    } else return CORE_ERR_OCCUPIED_WRITE_PORT;
     return CORE_ERR_OK;
 }
 
-/* 函数名: wlan_prepare_cmd
- * 参数: cmd_id(IN) -> 命令ID
-        cmd_action(IN) -> 命令动作
-        data_buf(IN) -> 命令缓冲区
-        data_len(IN) -> 缓冲区长度
- * 返回值: 返回执行结果
- * 描述: 组封包 */
+/**
+ * @param cmd_id 命令ID
+ * @param cmd_action 命令动作
+ * @param data_buf 命令缓冲区
+ * @param data_len 缓冲区长度
+ * @return core_err_e中某一状态码
+ * @brief 组封包
+ */
 static uint8_t wlan_prepare_cmd(uint16_t cmd_id, uint16_t cmd_action, uint8_t *data_buf, uint16_t data_len) {
     HOST_DS_COMMAND *cmd = (HOST_DS_COMMAND *)wlan_tx_buf;
     cmd->pack_type = TYPE_CMD_CMDRSP;
@@ -697,52 +719,53 @@ static uint8_t wlan_prepare_cmd(uint16_t cmd_id, uint16_t cmd_action, uint8_t *d
         cmd->params.add_ba_rsp.block_ack_param_set = add_ba_req->block_ack_param_set;
         cmd->params.add_ba_rsp.block_ack_tmo = add_ba_req->block_ack_tmo;
         cmd->params.add_ba_rsp.ssn = add_ba_req->ssn;
+        break;
     }
     }
-    return wlan_core.ap_info.sec_type < SECURITY_TYPE_WPA || cmd_id != HOST_ID_802_11_ASSOCIATE ? sdio_cmd53(SDIO_EXCU_WRITE, SDIO_FUNC_1, wlan_core.ctrl_port + CTRL_PORT, 0, wlan_tx_buf, *(wlan_tx_buf + 1) << 8 | *wlan_tx_buf) : CORE_ERR_OK;
+    return wlan_core.ap_info.sec_type < SECURITY_TYPE_WPA || cmd_id != HOST_ID_802_11_ASSOCIATE ? sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port + CTRL_PORT, 0, wlan_tx_buf, *(wlan_tx_buf + 1) << 8 | *wlan_tx_buf) : CORE_ERR_OK;
 }
 
-/* 函数名: wlan_download_fw
- * 参数: NULL
- * 返回值: 返回执行结果
- * 描述: 将固件下载到芯片 */
+/**
+ * @return core_err_e中某一状态码
+ * @brief 将固件下载到芯片
+ */
 static uint8_t wlan_download_fw(void) {
-    #ifndef USE_FLASH_FIRMWARE
+#ifndef USE_FLASH_FIRMWARE
     const uint8_t *fw_data = fw_mrvl88w8801;
-    #else
+#else
     /* 16-1024 bytes */
     uint8_t *fw_data = wlan_tx_buf;
-    #endif
+#endif
     uint8_t fw_next[2];
     uint16_t fw_next_16;
     uint32_t fw_len = sizeof(fw_mrvl88w8801);
     while (fw_len) {
         *fw_next = *(fw_next + 1) = 0;
-        if (fw_len != sizeof(fw_mrvl88w8801)) while (!(*fw_next & CARD_IO_READY && *fw_next & DN_LD_CARD_RDY)) if (sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, CARD_TO_HOST_EVENT_REG, 0, fw_next)) return CORE_ERR_FIRMWARE_FAILED;
+        if (fw_len != sizeof(fw_mrvl88w8801)) while (!(*fw_next & CARD_IO_READY && *fw_next & DN_LD_CARD_RDY)) if (sdio_cmd52(false, SDIO_FUNC_1, CARD_TO_HOST_EVENT_REG, 0, fw_next)) return CORE_ERR_FIRMWARE_FAILED;
         /* Get next block length */
-        if (sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, READ_BASE_0_REG, 0, fw_next) || sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, READ_BASE_1_REG, 0, fw_next + 1)) return CORE_ERR_FIRMWARE_FAILED;
+        if (sdio_cmd52(false, SDIO_FUNC_1, READ_BASE_0_REG, 0, fw_next) || sdio_cmd52(false, SDIO_FUNC_1, READ_BASE_1_REG, 0, fw_next + 1)) return CORE_ERR_FIRMWARE_FAILED;
         /* Little endian */
         if (!(fw_next_16 = *(uint16_t *)fw_next)) continue;
-        CORE_DEBUG("Required: %d bytes, remaining: %d bytes\n", fw_next_16, fw_len);
+        CORE_DEBUG("Required: %d bytes, remaining: %ld bytes\n", fw_next_16, fw_len);
         if (fw_next_16 & 1) {
             /* CRC failed */
             CORE_DEBUG("Error: Odd size is invalid\n");
             return CORE_ERR_FIRMWARE_FAILED;
         }
         if (fw_next_16 > fw_len) fw_next_16 = fw_len;
-        #ifdef USE_FLASH_FIRMWARE
+#ifdef USE_FLASH_FIRMWARE
         flashReadMemory(FLASH_FIRMWARE_ADDRESS + sizeof(fw_mrvl88w8801) - fw_len, fw_data, fw_next_16);
-        #endif
+#endif
         /* Write block */
-        if (sdio_cmd53(SDIO_EXCU_WRITE, SDIO_FUNC_1, wlan_core.ctrl_port, 0, (uint8_t *)fw_data, fw_next_16)) return CORE_ERR_FIRMWARE_FAILED;
+        if (sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port, 0, (uint8_t *)fw_data, fw_next_16)) return CORE_ERR_FIRMWARE_FAILED;
         fw_len -= fw_next_16;
-        #ifndef USE_FLASH_FIRMWARE
+#ifndef USE_FLASH_FIRMWARE
         fw_data += fw_next_16;
-        #endif
+#endif
     }
     /* Check firmware status */
     for (fw_next_16 = 0; fw_next_16 < MAX_POLL_TRIES; ++fw_next_16) {
-        if (sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, CARD_FW_STATUS0_REG, 0, fw_next) || sdio_cmd52(SDIO_EXCU_READ, SDIO_FUNC_1, CARD_FW_STATUS1_REG, 0, fw_next + 1)) break;
+        if (sdio_cmd52(false, SDIO_FUNC_1, CARD_FW_STATUS0_REG, 0, fw_next) || sdio_cmd52(false, SDIO_FUNC_1, CARD_FW_STATUS1_REG, 0, fw_next + 1)) break;
         if (*(uint16_t *)fw_next == FIRMWARE_READY) {
             CORE_DEBUG("Firmware is active (Index %d)\n", fw_next_16);
             return CORE_ERR_OK;

@@ -1,0 +1,7 @@
+Created by ALIENTEK Ltd., Glif.
+
+1.DCMI 时钟极性为上升沿触发；
+2.DCMI DMA 外设突发模式应设置为单次；
+3.GPIO 模拟 SCCB 时，采用开漏输出并上拉电阻；
+4.SCCB 使用软件延时，需要根据系统频率校正参数；
+5.HAL_DCMI_Start_DMA 数据长度以字为单位。

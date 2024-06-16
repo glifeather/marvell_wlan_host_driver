@@ -1,15 +1,19 @@
-/* Card Common Control Registers (CCCR)
- * Function Basic Registers (FBR)
- * Relative Card Address (RCA)
- * Card Information Structure (CIS) */
-
-/* 命令 - 响应
- * CMD3 - R6
- * CMD5 - R4
- * CMD7 - R1b
- * CMD52 - R5 */
+/**
+ * CCCR: Card Common Control Registers
+ * FBR: Function Basic Registers
+ * RCA: Relative Card Address
+ * CIS: Card Information Structure
+ * |Command|Response|
+ * |:-----:|:------:|
+ * | CMD3  |   R6   |
+ * | CMD5  |   R4   |
+ * | CMD7  |   R1b  |
+ * | CMD52 |   R5   |
+ * | CMD53 |   R5   |
+ */
 #ifndef _88W8801_SDIO_
 #define _88W8801_SDIO_
+#include <stdbool.h>
 #include <stm32f4xx.h>
 
 typedef enum {
@@ -38,23 +42,10 @@ typedef enum {
     SDIO_ERR_CIS_PARSE_FAILED
 } sdio_err_e;
 
-/* SDIOCLK时钟/Hz */
-#define SDIO_CLK_BASE 48000000
 /* 最大尝试次数 */
 #define SDIO_RETRY_MAX 100
 /* 分块大小/B */
 #define SDIO_BLK_SIZE 0x100
-/* 超时时间/ms */
-#define SDIO_DATATIMEOUT_BASE 100
-
-/* SDIO_CK分频系数 */
-#define SDIO_CLK_400KHZ (SDIO_CLK_BASE / 400000 - 2)
-// #define SDIO_CLK_1MHZ (SDIO_CLK_BASE / 1000000 - 2)
-#define SDIO_CLK_24MHZ (SDIO_CLK_BASE / 24000000 - 2)
-
-/* 超时时间（以SDIO_CK计） */
-// #define SDIO_DATATIMEOUT_1MHZ (SDIO_DATATIMEOUT_BASE * 1000)
-#define SDIO_DATATIMEOUT_24MHZ (SDIO_DATATIMEOUT_BASE * 24000)
 
 /* Func编号 */
 #define SDIO_FUNC_0 0
@@ -66,10 +57,6 @@ typedef enum {
 // #define SDIO_FUNC_6 6
 // #define SDIO_FUNC_7 7
 #define SDIO_FUNC_NUM 8
-
-/* 读写操作 */
-#define SDIO_EXCU_READ 0
-#define SDIO_EXCU_WRITE 1
 
 /* R4响应 */
 // #define OCR_IN_R4(x) ((x) & 0xFFFFFF)
@@ -124,11 +111,6 @@ typedef enum {
 } cis_tuple_code_e;
 
 typedef enum {
-    SDIO_DISABLE,
-    SDIO_ENABLE
-} sdio_status_e;
-
-typedef enum {
     SDIO_BUS_WIDTH_1 = 0x0,
     SDIO_BUS_WIDTH_4 = 0x2,
     SDIO_BUS_WIDTH_8 = 0x3
@@ -136,8 +118,8 @@ typedef enum {
 
 typedef struct {
     uint8_t func_num;
-    sdio_status_e func_status;
-    sdio_status_e func_int_status;
+    bool func_status;
+    bool func_int_status;
     uint16_t cur_blk_size;
     uint16_t max_blk_size;
 } sdio_func_t;
@@ -148,7 +130,7 @@ typedef struct {
     uint8_t sdio_version;
     uint16_t manf_code;
     uint16_t manf_info;
-    sdio_status_e sdio_int_mgr;
+    bool sdio_int_mgr;
     sdio_func_t func[SDIO_FUNC_NUM];
 } sdio_core_t;
 
@@ -169,6 +151,6 @@ uint8_t sdio_get_bus_width(bus_width_e *bus_width);
 uint8_t sdio_get_cis_ptr(uint8_t func_num, uint32_t *cis_ptr);
 uint8_t sdio_set_blk_size(uint8_t func_num, uint16_t blk_size);
 uint8_t sdio_get_blk_size(uint8_t func_num, uint16_t *blk_size);
-uint8_t sdio_cmd52(uint8_t write, uint8_t func_num, uint32_t address, uint8_t para, uint8_t *resp);
-uint8_t sdio_cmd53(uint8_t write, uint8_t func_num, uint32_t address, uint8_t inc_addr, uint8_t *buf, uint32_t size);
+uint8_t sdio_cmd52(bool write, uint8_t func_num, uint32_t address, uint8_t para, uint8_t *resp);
+uint8_t sdio_cmd53(bool write, uint8_t func_num, uint32_t address, uint8_t inc_addr, uint8_t *buf, uint32_t size);
 #endif

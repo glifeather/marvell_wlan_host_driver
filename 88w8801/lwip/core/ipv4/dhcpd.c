@@ -13,6 +13,13 @@
 #include "88w8801/core/88w8801_core.h"
 #endif
 
+#ifndef LWIP_DEBUG
+#undef LWIP_DEBUGF
+#define LWIP_DEBUGF(...) \
+    do { \
+    } while (0)
+#endif
+
 #if !defined DHCPD_DEBUG || defined __DOXYGEN__
 #define DHCPD_DEBUG LWIP_DBG_OFF
 #endif
@@ -20,16 +27,16 @@
 #define LWIP_COMBINEU32(addr) LWIP_MAKEU32(addr)
 
 #define DHCP_EXTENDED_OPTIONS_LEN 0
-#define DHCP_LEASE_TIME 86400
-#define DHCP_INFORM_NULL ((u8_t *)"-")
-#define DHCP_OPTION_DOMAIN_NAME 15
-#define DHCP_DOMAIN_NAME "lan"
+#define DHCP_LEASE_TIME           86400
+#define DHCP_INFORM_NULL          ((u8_t *)"-")
+#define DHCP_OPTION_DOMAIN_NAME   15
+#define DHCP_DOMAIN_NAME          "lan"
 
 PACK_STRUCT_BEGIN
 struct dhcpd_option_buf {
   u8_t code;
   u8_t len;
-  u8_t data[0];
+  u8_t data[];
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
 
@@ -138,24 +145,25 @@ static void dhcpd_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_
   LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_TRACE, ("dhcpd_recv(pbuf %p): client %" U16_F ".%" U16_F ".%" U16_F ".%" U16_F ":%" U16_F " (", (void *)p, ip4_addr1_16(ip_2_ip4(addr)), ip4_addr2_16(ip_2_ip4(addr)), ip4_addr3_16(ip_2_ip4(addr)), ip4_addr4_16(ip_2_ip4(addr)), port));
   LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_TRACE, ("len %" U16_F ", tot_len %" U16_F ")\n", p->len, p->tot_len));
 
-  if (request_msg->op != DHCP_BOOTREQUEST) {
-    LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_WARNING, ("dhcpd_recv(): message type %" U16_F " is not DHCP request\n", (u16_t)request_msg->op));
-    goto free_pbuf_and_return;
-  }
+  do {
+    if (request_msg->op != DHCP_BOOTREQUEST) {
+      LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_WARNING, ("dhcpd_recv(): message type %" U16_F " is not DHCP request\n", (u16_t)request_msg->op));
+      break;
+    }
 
-  if (dhcpd_parse_request(p)) {
-    LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS, ("dhcpd_recv(): unfolding DHCP message, too short on memory?\n"));
-    goto free_pbuf_and_return;
-  }
+    if (dhcpd_parse_request(p)) {
+      LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS, ("dhcpd_recv(): unfolding DHCP message, too short on memory?\n"));
+      break;
+    }
 
-  LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_STATE, ("message type %" U16_F "\n", dhcpd->msg_type));
-  struct pbuf *p_out = dhcpd_create_msg(p);
-  if (!p_out) goto free_pbuf_and_return;
-  // Broadcast before completing allocation
-  udp_sendto(dhcpd->pcb, p_out, IP_ADDR_BROADCAST, LWIP_IANA_PORT_DHCP_CLIENT);
-  pbuf_free(p_out);
+    LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_STATE, ("message type %" U16_F "\n", dhcpd->msg_type));
+    struct pbuf *p_out = dhcpd_create_msg(p);
+    if (!p_out) break;
+    // Broadcast before completing allocation
+    udp_sendto(dhcpd->pcb, p_out, IP_ADDR_BROADCAST, LWIP_IANA_PORT_DHCP_CLIENT);
+    pbuf_free(p_out);
+  } while (0);
 
-free_pbuf_and_return:
   pbuf_free(p);
 }
 
@@ -224,18 +232,20 @@ static struct pbuf *dhcpd_create_msg(struct pbuf *p) {
       LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_STATE, ("offered IP %s\n", ip4addr_ntoa((const ip4_addr_t *)&addr->ip_addr)));
     }
   }
-  if (!addr) {
-    // Create new node
-    if (dhcpd_add_address(msg_in)) goto free_pbuf_and_return;
-    addr = dhcpd->addr;
-  }
-  ip4_addr_copy(msg_out->yiaddr, addr->ip_addr);
 
-  memcpy(msg_out->chaddr, msg_in->chaddr, LWIP_MIN(DHCP_CHADDR_LEN, NETIF_MAX_HWADDR_LEN));
-  msg_out->cookie = PP_HTONL(DHCP_MAGIC_COOKIE);
-  if (!dhcpd_options((struct dhcpd_option_buf *)msg_out->options, addr)) return p_out;
+  do {
+    if (!addr) {
+      // Create new node
+      if (dhcpd_add_address(msg_in)) break;
+      addr = dhcpd->addr;
+    }
+    ip4_addr_copy(msg_out->yiaddr, addr->ip_addr);
 
-free_pbuf_and_return:
+    memcpy(msg_out->chaddr, msg_in->chaddr, LWIP_MIN(DHCP_CHADDR_LEN, NETIF_MAX_HWADDR_LEN));
+    msg_out->cookie = PP_HTONL(DHCP_MAGIC_COOKIE);
+    if (!dhcpd_options((struct dhcpd_option_buf *)msg_out->options, addr)) return p_out;
+  } while (0);
+
   pbuf_free(p_out);
   return NULL;
 }
@@ -280,7 +290,7 @@ static err_t dhcpd_options(struct dhcpd_option_buf *option_buf, struct dhcpd_add
     if (addr->offer) {
       *option_buf->data = DHCP_ACK;
       addr->offer = 0;
-    #if LWIP_NAT
+#if LWIP_NAT
       struct nat_conf conf;
       conf.netif_in = netif_get_by_index(BSS_TYPE_UAP + 1);
       conf.netif_out = netif_get_by_index(BSS_TYPE_STA + 1);
@@ -288,13 +298,13 @@ static err_t dhcpd_options(struct dhcpd_option_buf *option_buf, struct dhcpd_add
       ip4_addr_copy(conf.dst_ip_addr, conf.netif_out->ip_addr);
       conf.src_netmask.addr = conf.dst_netmask.addr = PP_HTONL(LWIP_COMBINEU32(LWIP_AP_NETMASK));
       if (nat_add(&conf)) LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS, ("dhcpd_options(): failed to add NAT configuration\n"));
-    #endif
+#endif
       if (dhcpd->access) dhcpd->access(*addr->hostname ? addr->hostname : DHCP_INFORM_NULL, addr->mac_addr, (u8_t *)ip4addr_ntoa((const ip4_addr_t *)&addr->ip_addr));
-    }
-    else *option_buf->data = DHCP_NAK;
+    } else *option_buf->data = DHCP_NAK;
     break;
   // Response cancelled
-  case DHCP_DECLINE: case DHCP_RELEASE: dhcpd_erase(NULL, NULL, addr); return ERR_BUF;
+  case DHCP_DECLINE:
+  case DHCP_RELEASE: dhcpd_erase(NULL, NULL, addr); return ERR_BUF;
   case DHCP_INFORM: *option_buf->data = DHCP_ACK; break;
   default: LWIP_DEBUGF(DHCPD_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_WARNING, ("dhcpd_options(): invalid message type\n")); return ERR_VAL;
   }
@@ -331,12 +341,12 @@ static err_t dhcpd_options(struct dhcpd_option_buf *option_buf, struct dhcpd_add
       option_buf->len = 4;
       *((u32_t *)option_buf->data) = PP_HTONL(LWIP_COMBINEU32(LWIP_AP_GATEWAY));
       break;
-  #if LWIP_DNS
+#if LWIP_DNS
     case DHCP_OPTION_DNS_SERVER:
       option_buf->len = 4;
       *((u32_t *)option_buf->data) = dns_getserver(0)->addr;
       break;
-  #endif
+#endif
     case DHCP_OPTION_DOMAIN_NAME: memcpy(option_buf->data, DHCP_DOMAIN_NAME, option_buf->len = sizeof(DHCP_DOMAIN_NAME) - 1); break;
     case DHCP_OPTION_BROADCAST:
       option_buf->len = 4;

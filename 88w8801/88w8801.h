@@ -1,6 +1,12 @@
 #ifndef _88W8801_
 #define _88W8801_
 
+// 抑制编译器警告
+#ifndef UNUSED
+#define UNUSED(x) (void)x
+#endif
+typedef unsigned char uint8_t;
+
 // 主机名称
 #define LWIP_HOSTNAME "STM32-88W8801"
 
@@ -38,7 +44,7 @@
 
 #ifdef WLAN_DEBUG
 // 清屏标志
-#define CLEAR_FLAG "\r"
+#define CLEAR_FLAG '\r'
 #define WLAN_CORE_DEBUG
 #define WLAN_FLASH_DEBUG
 #define WLAN_LWIP_DEBUG
