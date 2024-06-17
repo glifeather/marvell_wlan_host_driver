@@ -1155,7 +1155,7 @@
   </Group>
 
   <Group>
-    <GroupName>st7735</GroupName>
+    <GroupName>st7735s</GroupName>
     <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
@@ -1167,7 +1167,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Module\st7735\sbc_data.c</PathWithFileName>
+      <PathWithFileName>..\Module\st7735s\sbc_data.c</PathWithFileName>
       <FilenameWithoutPath>sbc_data.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -1179,8 +1179,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Module\st7735\st7735.c</PathWithFileName>
-      <FilenameWithoutPath>st7735.c</FilenameWithoutPath>
+      <PathWithFileName>..\Module\st7735s\st7735s.c</PathWithFileName>
+      <FilenameWithoutPath>st7735s.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>

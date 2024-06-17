@@ -1,5 +1,5 @@
 // Created by Glif.
-#include "st7735.h"
+#include "st7735s.h"
 
 const uint8_t g_ppu8SBCData[][LCD_FONT_HEIGHT * ((LCD_FONT_WIDTH + 7) / 8)] = {
 #if LCD_FONT_WIDTH == 6 && LCD_FONT_HEIGHT == 12

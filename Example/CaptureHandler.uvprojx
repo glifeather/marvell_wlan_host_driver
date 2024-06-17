@@ -796,17 +796,17 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>st7735</GroupName>
+          <GroupName>st7735s</GroupName>
           <Files>
             <File>
               <FileName>sbc_data.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Module\st7735\sbc_data.c</FilePath>
+              <FilePath>..\Module\st7735s\sbc_data.c</FilePath>
             </File>
             <File>
-              <FileName>st7735.c</FileName>
+              <FileName>st7735s.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Module\st7735\st7735.c</FilePath>
+              <FilePath>..\Module\st7735s\st7735s.c</FilePath>
             </File>
           </Files>
         </Group>

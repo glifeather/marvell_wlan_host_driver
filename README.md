@@ -14,21 +14,21 @@
 ## 模块说明 / Module Description
 - *88W8801* 详见 [参考 / Reference](#参考--reference)
     - *Flash* 读写 Flash，存取固件
-    - *lwIP* TCP/IP 协议栈（版本号 2\.1\.3），添加 DHCP 服务器及 NAT 模块，[查看移植/修改内容](88w8801/lwip/FILES)
+    - *lwIP* TCP/IP 协议栈（版本号 2\.1\.3），添加 DHCP 服务器及 NAT 模块，[查看移植/修改内容](Module/88w8801/lwip/FILES)
     - *SDIO* 设备通信接口实现
     - *Core* 处理封包，调用相关模块
     - *Wrapper* 简单的接口封装
-- *Debug/ST7735* 输出调试信息到 TFT\-LCD
+- *Debug/ST7735S* 输出调试信息到 TFT\-LCD
 - *OV2640* 通过 SCCB 调整摄像头参数
 - *SysTime* 时间管理（使用 SysTick 中断，无溢出控制）
 - 其他说明请查看各级目录下的 README
 ## 配置文件 / Configuration Files
-- 无线模块 [88w8801\.h](88w8801/88w8801.h)
-- lwIP [lwipopts\.h](88w8801/lwip/include/lwipopts.h)
-- TFT\-LCD [st7735\.h](st7735/st7735.h)
+- 无线模块 [88w8801\.h](Module/88w8801/88w8801.h)
+- lwIP [lwipopts\.h](Module/88w8801/lwip/include/lwipopts.h)
+- TFT\-LCD [st7735s\.h](Module/st7735s/st7735s.h)
 - 其他配置请查看各级目录下的 *.h
 ## 示例工程 / Example Project
-请使用 *STM32CubeMX* 打开 [CaptureHandler\.ioc](example/CaptureHandler.ioc)，生成工程后将 *example* 目录下其余内容（不包括 PDF 文档）分别**覆盖**原有文件，最后**新建**一个 *Module* 目录并添加所有模块即可。
+请使用 *STM32CubeMX* 打开 [CaptureHandler\.ioc](Example/CaptureHandler.ioc)，生成工程后将 *Example* 目录的其余内容分别**覆盖**原有文件，最后将 *Module* 目录移动到**工程根目录**下即可。
 - 软件版本号如下：
     - Keil uVision: *MDK\-ARM 5\.38a*
 
@@ -36,7 +36,7 @@
     - STM32CubeMX: *6\.11\.1*
 
       STM32Cube FW\_F4: *1\.28\.0*
-- [main\.c](example/main.c) 中默认禁用摄像头调试，可通过 *CAM\_DEBUG* 宏改变图像传输目的地
+- [main\.c](Example/main.c) 中默认禁用摄像头调试，可通过 *CAM\_DEBUG* 宏改变图像传输目的地
 - 代码简陋，仅供参考
 ## 参考 / Reference
 1. STMicroelectronics, [Datasheet DS8626](https://www.st.com/content/ccc/resource/technical/document/datasheet/ef/92/76/6d/bb/c2/4f/f7/DM00037051.pdf/files/DM00037051.pdf/jcr:content/translations/en.DM00037051.pdf)

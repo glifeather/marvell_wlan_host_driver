@@ -15,7 +15,7 @@
 #include "88w8801/flash/88w8801_program.h"
 #endif
 #include "ov2640/ov2640.h"
-#include "st7735/st7735.h"
+#include "st7735s/st7735s.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

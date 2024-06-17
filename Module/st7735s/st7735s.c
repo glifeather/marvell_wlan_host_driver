@@ -2,7 +2,7 @@
 #include <stm32f4xx_ll_gpio.h>
 #include <stm32f4xx_ll_spi.h>
 #include <stm32f4xx_ll_utils.h>
-#include "st7735.h"
+#include "st7735s.h"
 
 #define CS_RESET  LL_GPIO_ResetOutputPin(g_lcdsInit.CS_GPIO_Port, g_lcdsInit.CS_Pin)
 #define CS_SET    LL_GPIO_SetOutputPin(g_lcdsInit.CS_GPIO_Port, g_lcdsInit.CS_Pin)

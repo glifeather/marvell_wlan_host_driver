@@ -1,6 +1,6 @@
 // Created by Glif.
-#ifndef _ST7735_
-#define _ST7735_
+#ifndef _ST7735S_
+#define _ST7735S_
 #include <stdbool.h>
 #include <stm32f4xx.h>
 

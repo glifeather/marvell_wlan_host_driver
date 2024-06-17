@@ -2,7 +2,7 @@
 #include "88w8801/88w8801.h"
 #ifdef WLAN_DEBUG
 #include <stdio.h>
-#include "st7735/st7735.h"
+#include "st7735s/st7735s.h"
 
 static uint16_t x = 0, y = 0;
 
