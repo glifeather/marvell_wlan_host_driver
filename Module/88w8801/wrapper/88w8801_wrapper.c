@@ -7,10 +7,10 @@
 
 static core_err_e *sys_status = NULL;
 
-uint8_t wrapper_init(core_err_e *status, wlan_cb_t *callback, GPIO_TypeDef *PDN_GPIO_Port, uint32_t PDN_Pin) {
+uint16_t wrapper_init(core_err_e *status, wlan_cb_t *callback, GPIO_TypeDef *PDN_GPIO_Port, uint32_t PDN_Pin) {
     sys_status = status;
     uint8_t err = sdio_init(PDN_GPIO_Port, PDN_Pin);
-    return err ? err : wlan_init(callback);
+    return err ? err << 8 : wlan_init(callback);
 }
 
 uint8_t wrapper_proc(void) {
@@ -57,7 +57,7 @@ err_t wrapper_udp_bind(struct udp_pcb **pcb, uint16_t port, udp_recv_fn recv) {
     return ERR_OK;
 }
 
-#if UDP_USE_CONNECTION
+#if LWIP_UDP_CONNECTION
 err_t wrapper_udp_connect(struct udp_pcb **pcb, const ip_addr_t *ipaddr, uint16_t port) { return udp_connect(*pcb, ipaddr, port); }
 
 void wrapper_udp_disconnect(struct udp_pcb **pcb) { udp_disconnect(*pcb); }

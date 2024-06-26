@@ -662,7 +662,7 @@ typedef enum {
 /* Event ID: Tx status */
 // #define EVENT_TX_STATUS_REPORT 0x74
 /* Event ID: BT coex WLAN parameter change */
-// #define EVENT_BT_COEX_WLAN_PARA_CHANGE 0x76
+// #define EVENT_BT_COEX_WLAN_PARAM_CHANGE 0x76
 
 /* Setup the number of rates passed in the driver/firmware API */
 #define HOST_SUPPORTED_RATES 14
@@ -908,7 +908,7 @@ typedef struct {
 
 typedef struct {
     /* Parameter set count */
-    uint8_t para_set_count : 4;
+    uint8_t param_set_count : 4;
     /* Reserved */
     uint8_t reserved : 3;
     /* QoS UAPSD */

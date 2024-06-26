@@ -17,7 +17,7 @@
 
 uint8_t wlan_tx_buf[TX_BUF_SIZE];
 static uint8_t wlan_rx_buf[RX_BUF_SIZE];
-static uint8_t mp_regs_buf[SDIO_BLK_SIZE];
+static uint8_t mp_regs_buf[SDIO_BLOCK_SIZE];
 static wlan_cb_t *wlan_callback = NULL;
 static wlan_core_t wlan_core;
 /* 在88w8801_firmware.c中定义 */
@@ -68,14 +68,14 @@ uint8_t wlan_shutdown(void) { return wlan_prepare_cmd(HOST_ID_FUNC_SHUTDOWN, HOS
  */
 uint8_t wlan_process_packet(void) {
     /* 读取控制寄存器并清除芯片中断 */
-    if (sdio_cmd53(false, SDIO_FUNC_1, REG_PORT, 0, mp_regs_buf, MAX_MP_REGS) || sdio_cmd52(true, SDIO_FUNC_1, HOST_INT_STATUS_REG, *(mp_regs_buf + HOST_INT_STATUS_REG) & ~UP_LD_HOST_INT_STATUS, NULL)) return CORE_ERR_INT_STATUS_FAILED;
+    if (sdio_cmd53(false, SDIO_FUNC_1, REG_PORT, false, mp_regs_buf, MAX_MP_REGS) || sdio_cmd52(true, SDIO_FUNC_1, HOST_INT_STATUS_REG, *(mp_regs_buf + HOST_INT_STATUS_REG) & ~UP_LD_HOST_INT_STATUS, NULL)) return CORE_ERR_INT_STATUS_FAILED;
     wlan_core.read_bitmap = *(mp_regs_buf + RD_BITMAP_U) << 8 | *(mp_regs_buf + RD_BITMAP_L);
     wlan_core.write_bitmap = *(mp_regs_buf + WR_BITMAP_U) << 8 | *(mp_regs_buf + WR_BITMAP_L);
     uint8_t read_port;
     while (!wlan_get_read_port(&read_port)) {
         CORE_DEBUG("Rx: Port %d, Size %d\n", read_port, *(mp_regs_buf + RD_LEN_P0_U + (read_port << 1)) << 8 | *(mp_regs_buf + RD_LEN_P0_L + (read_port << 1)));
         /* 使用CMD53读取数据 */
-        if (sdio_cmd53(false, SDIO_FUNC_1, wlan_core.ctrl_port + read_port, 0, wlan_rx_buf, *(mp_regs_buf + RD_LEN_P0_U + (read_port << 1)) << 8 | *(mp_regs_buf + RD_LEN_P0_L + (read_port << 1)))) return CORE_ERR_INVALID_RX_BUFFER;
+        if (sdio_cmd53(false, SDIO_FUNC_1, wlan_core.ctrl_port + read_port, false, wlan_rx_buf, *(mp_regs_buf + RD_LEN_P0_U + (read_port << 1)) << 8 | *(mp_regs_buf + RD_LEN_P0_L + (read_port << 1)))) return CORE_ERR_INVALID_RX_BUFFER;
         /* 解析从芯片发来的数据 */
         switch (*(wlan_rx_buf + 2)) {
         case TYPE_DATA: read_port = wlan_process_data(wlan_rx_buf); break;
@@ -99,20 +99,20 @@ uint8_t wlan_process_packet(void) {
  * @brief 执行普通搜索
  */
 uint8_t wlan_scan(uint8_t *channel, uint8_t channel_num, uint16_t max_time) {
-    uint16_t scan_para_len = sizeof(MrvlIEtypesHeader_t) + channel_num * sizeof(ChanScanParamSet_t);
-    uint8_t scan_para[scan_para_len];
+    uint16_t scan_params_len = sizeof(MrvlIEtypesHeader_t) + channel_num * sizeof(ChanScanParamSet_t);
+    uint8_t scan_params[scan_params_len];
     /* 组合通道列表 */
-    MrvlIEtypes_ChanListParamSet_t *channel_list = (MrvlIEtypes_ChanListParamSet_t *)scan_para;
+    MrvlIEtypes_ChanListParamSet_t *channel_list = (MrvlIEtypes_ChanListParamSet_t *)scan_params;
     channel_list->header.type = TLV_TYPE_CHANLIST;
     channel_list->header.len = channel_num * sizeof(ChanScanParamSet_t);
-    ChanScanParamSet_t *channel_list_para[channel_num];
+    ChanScanParamSet_t *channel_list_params[channel_num];
     for (uint8_t index = 0; index < channel_num; ++index) {
-        *(channel_list_para + index) = (ChanScanParamSet_t *)(scan_para + sizeof(MrvlIEtypesHeader_t) + index * sizeof(ChanScanParamSet_t));
-        (*(channel_list_para + index))->chan_number = *(channel + index);
-        (*(channel_list_para + index))->max_scan_time = max_time;
-        (*(channel_list_para + index))->radio_type = (*(channel_list_para + index))->chan_scan_mode = (*(channel_list_para + index))->min_scan_time = 0;
+        *(channel_list_params + index) = (ChanScanParamSet_t *)(scan_params + sizeof(MrvlIEtypesHeader_t) + index * sizeof(ChanScanParamSet_t));
+        (*(channel_list_params + index))->chan_number = *(channel + index);
+        (*(channel_list_params + index))->max_scan_time = max_time;
+        (*(channel_list_params + index))->radio_type = (*(channel_list_params + index))->chan_scan_mode = (*(channel_list_params + index))->min_scan_time = 0;
     }
-    return wlan_prepare_cmd(HOST_ID_802_11_SCAN, HOST_ACT_GEN_GET, scan_para, scan_para_len);
+    return wlan_prepare_cmd(HOST_ID_802_11_SCAN, HOST_ACT_GEN_GET, scan_params, scan_params_len);
 }
 
 /**
@@ -123,25 +123,25 @@ uint8_t wlan_scan(uint8_t *channel, uint8_t channel_num, uint16_t max_time) {
  * @brief 执行特定搜索
  */
 uint8_t wlan_scan_ssid(uint8_t *ssid, uint8_t ssid_len, uint16_t max_time) {
-    uint16_t scan_para_len = 2 * sizeof(MrvlIEtypesHeader_t) + ssid_len + MAX_CHANNEL_NUM * sizeof(ChanScanParamSet_t);
-    uint8_t scan_para[scan_para_len];
+    uint16_t scan_params_len = 2 * sizeof(MrvlIEtypesHeader_t) + ssid_len + MAX_CHANNEL_NUM * sizeof(ChanScanParamSet_t);
+    uint8_t scan_params[scan_params_len];
     /* 组合SSID */
-    MrvlIEtypes_SSIDParamSet_t *ssid_tlv = (MrvlIEtypes_SSIDParamSet_t *)scan_para;
+    MrvlIEtypes_SSIDParamSet_t *ssid_tlv = (MrvlIEtypes_SSIDParamSet_t *)scan_params;
     ssid_tlv->header.type = TLV_TYPE_SSID;
     ssid_tlv->header.len = ssid_len;
     memcpy(ssid_tlv->ssid, ssid, ssid_len);
     /* 组合通道列表 */
-    MrvlIEtypes_ChanListParamSet_t *channel_list = (MrvlIEtypes_ChanListParamSet_t *)(scan_para + sizeof(MrvlIEtypesHeader_t) + ssid_len);
+    MrvlIEtypes_ChanListParamSet_t *channel_list = (MrvlIEtypes_ChanListParamSet_t *)(scan_params + sizeof(MrvlIEtypesHeader_t) + ssid_len);
     channel_list->header.type = TLV_TYPE_CHANLIST;
     channel_list->header.len = MAX_CHANNEL_NUM * sizeof(ChanScanParamSet_t);
-    ChanScanParamSet_t *channel_list_para[MAX_CHANNEL_NUM];
+    ChanScanParamSet_t *channel_list_params[MAX_CHANNEL_NUM];
     for (uint8_t index = 0; index < MAX_CHANNEL_NUM; ++index) {
-        *(channel_list_para + index) = (ChanScanParamSet_t *)(scan_para + 2 * sizeof(MrvlIEtypesHeader_t) + ssid_len + index * sizeof(ChanScanParamSet_t));
-        (*(channel_list_para + index))->chan_number = index + 1;
-        (*(channel_list_para + index))->max_scan_time = max_time;
-        (*(channel_list_para + index))->radio_type = (*(channel_list_para + index))->chan_scan_mode = (*(channel_list_para + index))->min_scan_time = 0;
+        *(channel_list_params + index) = (ChanScanParamSet_t *)(scan_params + 2 * sizeof(MrvlIEtypesHeader_t) + ssid_len + index * sizeof(ChanScanParamSet_t));
+        (*(channel_list_params + index))->chan_number = index + 1;
+        (*(channel_list_params + index))->max_scan_time = max_time;
+        (*(channel_list_params + index))->radio_type = (*(channel_list_params + index))->chan_scan_mode = (*(channel_list_params + index))->min_scan_time = 0;
     }
-    return wlan_prepare_cmd(HOST_ID_802_11_SCAN, HOST_ACT_GEN_GET, scan_para, scan_para_len);
+    return wlan_prepare_cmd(HOST_ID_802_11_SCAN, HOST_ACT_GEN_GET, scan_params, scan_params_len);
 }
 
 /**
@@ -267,7 +267,7 @@ uint8_t wlan_send_data(uint8_t *data_buf, uint16_t data_len, wlan_bss_type bss_t
         wlan_core.write_bitmap = *(uint16_t *)wr_bitmap;
     } while (wlan_get_write_port(wr_bitmap));
     CORE_DEBUG("Tx: Port %d, Size %d\n", *wr_bitmap, tx_packet->pack_len);
-    return sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port + *wr_bitmap, 0, (uint8_t *)tx_packet, tx_packet->pack_len) ? CORE_ERR_SEND_DATA_FAILED : CORE_ERR_OK;
+    return sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port + *wr_bitmap, false, (uint8_t *)tx_packet, tx_packet->pack_len) ? CORE_ERR_SEND_DATA_FAILED : CORE_ERR_OK;
 }
 
 /**
@@ -372,40 +372,40 @@ static uint8_t wlan_ret_scan(uint8_t *rx_buf) {
         }
         if (wlan_core.ap_info.con_status == CON_STATUS_CONNECTING) {
             /* 连接准备 */
-            uint8_t associate_para[0x200];
-            MrvlIEtypes_SSIDParamSet_t *ssid_tlv = (MrvlIEtypes_SSIDParamSet_t *)associate_para;
+            uint8_t associate_params[0x200];
+            MrvlIEtypes_SSIDParamSet_t *ssid_tlv = (MrvlIEtypes_SSIDParamSet_t *)associate_params;
             ssid_tlv->header.type = TLV_TYPE_SSID;
             ssid_tlv->header.len = wlan_core.ap_info.ssid_len;
             memcpy(ssid_tlv->ssid, ssid, wlan_core.ap_info.ssid_len);
-            uint16_t associate_para_len = sizeof(MrvlIEtypesHeader_t) + wlan_core.ap_info.ssid_len;
-            MrvlIETypes_PhyParamDSSet_t *phy_tlv = (MrvlIETypes_PhyParamDSSet_t *)(associate_para + associate_para_len);
+            uint16_t associate_params_len = sizeof(MrvlIEtypesHeader_t) + wlan_core.ap_info.ssid_len;
+            MrvlIETypes_PhyParamDSSet_t *phy_tlv = (MrvlIETypes_PhyParamDSSet_t *)(associate_params + associate_params_len);
             phy_tlv->header.type = TLV_TYPE_PHY_DS;
             phy_tlv->header.len = 1;
             phy_tlv->channel = channel;
-            associate_para_len += sizeof(MrvlIETypes_PhyParamDSSet_t);
-            MrvlIETypes_CfParamSet_t *cf_tlv = (MrvlIETypes_CfParamSet_t *)(associate_para + associate_para_len);
+            associate_params_len += sizeof(MrvlIETypes_PhyParamDSSet_t);
+            MrvlIETypes_CfParamSet_t *cf_tlv = (MrvlIETypes_CfParamSet_t *)(associate_params + associate_params_len);
             memset(cf_tlv, 0, sizeof(MrvlIETypes_CfParamSet_t));
             cf_tlv->header.type = TLV_TYPE_CF;
             cf_tlv->header.len = sizeof(MrvlIETypes_CfParamSet_t) - sizeof(MrvlIEtypesHeader_t);
-            associate_para_len += sizeof(MrvlIETypes_CfParamSet_t);
+            associate_params_len += sizeof(MrvlIETypes_CfParamSet_t);
             if (sec_type == SECURITY_TYPE_NONE) {
-                MrvlIETypes_AuthType_t *auth_tlv = (MrvlIETypes_AuthType_t *)(associate_para + associate_para_len);
+                MrvlIETypes_AuthType_t *auth_tlv = (MrvlIETypes_AuthType_t *)(associate_params + associate_params_len);
                 auth_tlv->header.type = TLV_TYPE_AUTH_TYPE;
                 auth_tlv->header.len = sizeof(MrvlIETypes_AuthType_t) - sizeof(MrvlIEtypesHeader_t);
                 auth_tlv->auth_type = AUTH_TYPE_OPEN;
-                associate_para_len += sizeof(MrvlIETypes_AuthType_t);
+                associate_params_len += sizeof(MrvlIETypes_AuthType_t);
             }
-            MrvlIEtypes_ChanListParamSet_t *channel_list = (MrvlIEtypes_ChanListParamSet_t *)(associate_para + associate_para_len);
-            ChanScanParamSet_t *channel_list_para = (ChanScanParamSet_t *)(associate_para + associate_para_len + sizeof(MrvlIEtypesHeader_t));
+            MrvlIEtypes_ChanListParamSet_t *channel_list = (MrvlIEtypes_ChanListParamSet_t *)(associate_params + associate_params_len);
+            ChanScanParamSet_t *channel_list_params = (ChanScanParamSet_t *)(associate_params + associate_params_len + sizeof(MrvlIEtypesHeader_t));
             channel_list->header.type = TLV_TYPE_CHANLIST;
             channel_list->header.len = sizeof(ChanScanParamSet_t);
-            channel_list_para->chan_number = channel;
-            channel_list_para->max_scan_time = MAX_SCAN_TIME;
-            channel_list_para->radio_type = channel_list_para->chan_scan_mode = channel_list_para->min_scan_time = 0;
-            associate_para_len += sizeof(MrvlIEtypes_ChanListParamSet_t);
+            channel_list_params->chan_number = channel;
+            channel_list_params->max_scan_time = MAX_SCAN_TIME;
+            channel_list_params->radio_type = channel_list_params->chan_scan_mode = channel_list_params->min_scan_time = 0;
+            associate_params_len += sizeof(MrvlIEtypes_ChanListParamSet_t);
             uint8_t rate_tlv[] = {0x01, 0x00, 0x0C, 0x00, 0x82, 0x84, 0x8B, 0x8C, 0x12, 0x96, 0x98, 0x24, 0xB0, 0x48, 0x60, 0x6C};
-            memcpy(associate_para + associate_para_len, rate_tlv, sizeof(rate_tlv));
-            associate_para_len += sizeof(rate_tlv);
+            memcpy(associate_params + associate_params_len, rate_tlv, sizeof(rate_tlv));
+            associate_params_len += sizeof(rate_tlv);
             if (sec_type >= SECURITY_TYPE_WPA) {
                 if ((*rate_tlv = wlan_ass_supplicant_pmk_pkg(bss_desc_set->bssid))) {
                     wlan_core.ap_info.con_status = CON_STATUS_NOT_CONNECTED;
@@ -414,23 +414,23 @@ static uint8_t wlan_ret_scan(uint8_t *rx_buf) {
                 }
                 MrvlIETypes_Vendor_t *vendor_tlv;
                 for (uint8_t index = 0; index < vendor_tlv_count; ++index) {
-                    vendor_tlv = (MrvlIETypes_Vendor_t *)(associate_para + associate_para_len);
+                    vendor_tlv = (MrvlIETypes_Vendor_t *)(associate_params + associate_params_len);
                     vendor_tlv->header.type = TLV_TYPE_VENDOR_SPECIFIC_IE;
                     vendor_tlv->header.len = (*(vendor_data_ptr + index))->header.length;
                     memcpy(vendor_tlv->vendor, (*(vendor_data_ptr + index))->data, vendor_tlv->header.len);
-                    associate_para_len += sizeof(MrvlIEtypesHeader_t) + vendor_tlv->header.len;
+                    associate_params_len += sizeof(MrvlIEtypesHeader_t) + vendor_tlv->header.len;
                 }
                 if (sec_type == SECURITY_TYPE_WPA2) {
-                    MrvlIETypes_RSN_t *rsn_tlv = (MrvlIETypes_RSN_t *)(associate_para + associate_para_len);
+                    MrvlIETypes_RSN_t *rsn_tlv = (MrvlIETypes_RSN_t *)(associate_params + associate_params_len);
                     rsn_tlv->header.type = TLV_TYPE_RSN_PARAMSET;
                     rsn_tlv->header.len = rsn_data_ptr->header.length;
                     memcpy(rsn_tlv->rsn, rsn_data_ptr->data, rsn_tlv->header.len);
-                    associate_para_len += sizeof(MrvlIEtypesHeader_t) + rsn_tlv->header.len;
+                    associate_params_len += sizeof(MrvlIEtypesHeader_t) + rsn_tlv->header.len;
                 }
             }
             memcpy(wlan_core.ap_info.ap_mac_addr, bss_desc_set->bssid, MAC_ADDR_LENGTH);
             wlan_core.ap_info.cap_info = bss_desc_set->cap_info;
-            if ((*rate_tlv = wlan_prepare_cmd(HOST_ID_802_11_ASSOCIATE, HOST_ACT_GEN_GET, associate_para, associate_para_len))) {
+            if ((*rate_tlv = wlan_prepare_cmd(HOST_ID_802_11_ASSOCIATE, HOST_ACT_GEN_GET, associate_params, associate_params_len))) {
                 wlan_core.ap_info.con_status = CON_STATUS_NOT_CONNECTED;
                 if (wlan_callback && wlan_callback->wlan_cb_sta_connect) wlan_callback->wlan_cb_sta_connect(CORE_ERR_UNHANDLED_STATUS);
                 return *rate_tlv;
@@ -514,7 +514,7 @@ static uint8_t wlan_process_cmdrsp(uint8_t *rx_buf) {
         ethernetif_link_down(BSS_TYPE_UAP);
         if (wlan_callback && wlan_callback->wlan_cb_ap_stop) wlan_callback->wlan_cb_ap_stop();
         break;
-    case HOST_ID_SUPPLICANT_PMK: return sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port + CTRL_PORT, 0, wlan_tx_buf, *(wlan_tx_buf + 1) << 8 | *wlan_tx_buf) ? CORE_ERR_INVALID_CMD_RESPONSE : CORE_ERR_OK;
+    case HOST_ID_SUPPLICANT_PMK: return sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port + CTRL_PORT, false, wlan_tx_buf, *(wlan_tx_buf + 1) << 8 | *wlan_tx_buf) ? CORE_ERR_INVALID_CMD_RESPONSE : CORE_ERR_OK;
     case HOST_ID_802_11_DEAUTHENTICATE:
     case HOST_ID_APCMD_BSS_START:
     case HOST_ID_11N_ADDBA_RSP: break;
@@ -722,7 +722,7 @@ static uint8_t wlan_prepare_cmd(uint16_t cmd_id, uint16_t cmd_action, uint8_t *d
         break;
     }
     }
-    return wlan_core.ap_info.sec_type < SECURITY_TYPE_WPA || cmd_id != HOST_ID_802_11_ASSOCIATE ? sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port + CTRL_PORT, 0, wlan_tx_buf, *(wlan_tx_buf + 1) << 8 | *wlan_tx_buf) : CORE_ERR_OK;
+    return wlan_core.ap_info.sec_type < SECURITY_TYPE_WPA || cmd_id != HOST_ID_802_11_ASSOCIATE ? sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port + CTRL_PORT, false, wlan_tx_buf, *(wlan_tx_buf + 1) << 8 | *wlan_tx_buf) : CORE_ERR_OK;
 }
 
 /**
@@ -757,7 +757,7 @@ static uint8_t wlan_download_fw(void) {
         flashReadMemory(FLASH_FIRMWARE_ADDRESS + sizeof(fw_mrvl88w8801) - fw_len, fw_data, fw_next_16);
 #endif
         /* Write block */
-        if (sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port, 0, (uint8_t *)fw_data, fw_next_16)) return CORE_ERR_FIRMWARE_FAILED;
+        if (sdio_cmd53(true, SDIO_FUNC_1, wlan_core.ctrl_port, false, (uint8_t *)fw_data, fw_next_16)) return CORE_ERR_FIRMWARE_FAILED;
         fw_len -= fw_next_16;
 #ifndef USE_FLASH_FIRMWARE
         fw_data += fw_next_16;
