@@ -22,6 +22,7 @@ static uint8_t sdio_cmd3(uint32_t param, uint32_t *resp);
 static uint8_t sdio_cmd5(uint32_t param, uint32_t *resp, uint16_t retry_max);
 static uint8_t sdio_cmd7(uint32_t param, uint32_t *resp);
 static uint8_t sdio_cmd53_send(bool write, uint8_t func_num, uint32_t reg_addr, bool inc_addr, uint16_t block_count);
+static uint8_t sdio_try_high_speed(void);
 static uint8_t sdio_get_cis(uint8_t func_num, uint32_t *cis_pointer);
 static uint8_t sdio_parse_cis(uint8_t func_num, uint32_t cis_pointer);
 
@@ -60,6 +61,7 @@ uint8_t sdio_init(GPIO_TypeDef *PDN_GPIO_Port, uint32_t PDN_Pin) {
     /* 切换到1位总线，400kHz时钟 */
     SDIO_InitTypeDef sdioStruct = {0};
     sdioStruct.BusWide = SDIO_BUS_WIDE_1B;
+    sdioStruct.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_ENABLE;
     sdioStruct.ClockDiv = SDIO_INIT_CLK_DIV;
     SDIO_Init(SDIO, sdioStruct);
     SDIO_PowerState_ON(SDIO);
@@ -79,8 +81,9 @@ uint8_t sdio_init(GPIO_TypeDef *PDN_GPIO_Port, uint32_t PDN_Pin) {
     if ((err = sdio_cmd3(0, &cmd_resp))) return err;
     /* 解析RCA并执行CMD7 */
     if ((err = sdio_cmd7(SDIO_R6_RCA(cmd_resp) << 16, &cmd_resp))) return err;
-    /* 切换到4位总线，24MHz时钟 */
-    if ((err = sdio_set_bus_width(SDIO_BUS_WIDTH_4))) return err;
+    /* 切换到4位总线，48MHz时钟 */
+    if ((err = sdio_set_bus_width(SDIO_BUS_WIDTH_4)) || (err = sdio_try_high_speed())) return err;
+    sdioStruct.ClockBypass = SDIO_CLOCK_BYPASS_ENABLE;
     sdioStruct.BusWide = SDIO_BUS_WIDE_4B;
     sdioStruct.ClockDiv = SDIO_TRANSFER_CLK_DIV;
     SDIO_Init(SDIO, sdioStruct);
@@ -426,16 +429,6 @@ static uint8_t sdio_check_err(void) {
         ++err;
         SDIO_DEBUG("Error: Data timeout\n");
     }
-    if (__SDIO_GET_FLAG(SDIO, SDIO_FLAG_TXUNDERR)) {
-        __SDIO_CLEAR_FLAG(SDIO, SDIO_FLAG_TXUNDERR);
-        ++err;
-        SDIO_DEBUG("Error: Transmit FIFO underrun\n");
-    }
-    if (__SDIO_GET_FLAG(SDIO, SDIO_FLAG_RXOVERR)) {
-        __SDIO_CLEAR_FLAG(SDIO, SDIO_FLAG_RXOVERR);
-        ++err;
-        SDIO_DEBUG("Error: Received FIFO overrun\n");
-    }
     return err;
 }
 
@@ -543,6 +536,16 @@ static uint8_t sdio_cmd53_send(bool write, uint8_t func_num, uint32_t reg_addr, 
     while (!__SDIO_GET_FLAG(SDIO, SDIO_FLAG_CMDREND)) if (sdio_check_err()) return write + SDIO_ERR_CMD53_READ_FAILED;
     /* 清除命令响应标志 */
     __SDIO_CLEAR_FLAG(SDIO, SDIO_FLAG_CMDREND);
+    return SDIO_ERR_OK;
+}
+
+/**
+ * @return sdio_err_e中某一状态码
+ * @brief 尝试将SDIO切换到高速模式
+ */
+static uint8_t sdio_try_high_speed(void) {
+    uint8_t speed;
+    if (sdio_cmd52(false, SDIO_FUNC_0, SDIO_CCCR_BUS_SPEED_SELECT, 0, &speed) || sdio_cmd52(true, SDIO_FUNC_0, SDIO_CCCR_BUS_SPEED_SELECT, speed | 0x2, NULL)) return SDIO_ERR_BUS_SPEED_UNCHANGED;
     return SDIO_ERR_OK;
 }
 

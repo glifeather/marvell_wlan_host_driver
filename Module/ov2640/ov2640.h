@@ -108,6 +108,12 @@ typedef enum {
 #define OV2640_SENSOR_HISTO_HIGH 0x62
 
 typedef enum {
+    CAM_IMAGE_MODE_RGB565 = 0x09,
+    CAM_IMAGE_MODE_YUV422 = 0x00,
+    CAM_IMAGE_MODE_JPEG = 0x10
+} camImageMode;
+
+typedef enum {
     CAM_AUTO_EXPOSURE_0,
     CAM_AUTO_EXPOSURE_1,
     CAM_AUTO_EXPOSURE_2,
@@ -153,8 +159,10 @@ typedef struct {
     uint32_t RST_Pin;
 } camSettings;
 
-// 初始化（RGB565格式）
+// 初始化
 cam_err_e camInit(camSettings *camsInit);
+// 设置图像模式
+void camSetImageMode(camImageMode camimParam);
 // 设置拍摄窗口
 void camSetWindow(uint16_t x, uint16_t y, uint16_t u16Width, uint16_t u16Height);
 // 根据拍摄窗口设置拍摄尺寸

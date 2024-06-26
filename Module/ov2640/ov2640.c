@@ -172,7 +172,7 @@ static const uint8_t g_ppu8SVGAInit[][2] = {
     {OV2640_DSP_ZMHH, 0x00},
     {OV2640_DSP_CTRL1, 0xED},
     {0x7F, 0x00},
-    {OV2640_DSP_IMAGE_MODE, 0x09},
+    {OV2640_DSP_IMAGE_MODE, CAM_IMAGE_MODE_RGB565},
     {0xE5, 0x1F},
     {0xE1, 0x67},
     {OV2640_DSP_RESET, 0x00},
@@ -229,6 +229,11 @@ cam_err_e camInit(camSettings *camsInit) {
     if ((sccbReadReg(OV2640_SENSOR_PIDH) << 8 | sccbReadReg(OV2640_SENSOR_PIDL)) != OV2640_PID) return CAM_ERR_MISMATCHING_PID;
     for (uint8_t i = 0; i < sizeof(g_ppu8SVGAInit) / 2; ++i) sccbWriteReg(**(g_ppu8SVGAInit + i), *(*(g_ppu8SVGAInit + i) + 1));
     return CAM_ERR_OK;
+}
+
+void camSetImageMode(camImageMode camimParam) {
+    sccbWriteReg(OV2640_DSP_RA_DLMT, 0x00);
+    sccbWriteReg(OV2640_DSP_IMAGE_MODE, camimParam);
 }
 
 void camSetWindow(uint16_t x, uint16_t y, uint16_t u16Width, uint16_t u16Height) {
